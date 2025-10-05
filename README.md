@@ -6,6 +6,24 @@ Stack: **React (Vite)** · **FastAPI (Python 3.11)** · **MongoDB** · **Docker*
 
 ---
 
+## Branching Strategy
+
+To maintain a clean and stable development workflow, the project follows a two-tier branching model with main and develop as the primary branches.
+
+main branch
+	•	Represents the production-ready or final stable codebase.
+	•	Contains thoroughly tested, reviewed, and approved features from completed sprints.
+	•	Only release-quality code is merged into main.
+	•	Protected against direct commits — all updates must come from pull requests (PRs) merged from develop.
+	•	Each merge into main is considered a sprint release (e.g., Sprint 1, Sprint 2, etc.).
+
+develop branch
+	•	Serves as the integration branch where features are merged after successful local development and testing.
+	•	Always contains the latest working build that integrates multiple features or bug fixes.
+	•	Acts as the staging area for upcoming sprint releases.
+	•	Developers create feature branches from develop (e.g., feature/login-api, feature/event-registration-ui) and merge back into develop via pull requests once code is reviewed and verified.
+---
+
 ## ✨ Features (MVP)
 - CAS SSO + JWT RBAC (Admin, Organizer, Participant)
 - Event creation & approval, ticket types & capacity
