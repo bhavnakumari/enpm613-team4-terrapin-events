@@ -122,4 +122,3 @@ See `.github/workflows/ci.yml` and `infra/docker-compose.yml`.
 ├─ .env.example
 └─ README.md
 ```
-# enpm613-team4-event-management-system
