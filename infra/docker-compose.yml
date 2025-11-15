@@ -1,12 +1,17 @@
-version: '3.8'
 services:
   mongo:
-    image: mongo:6
+    image: mongo:7
     container_name: cems_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: terrapin_events
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    networks:
+      - app_network
 
   backend:
     build: ../backend
@@ -16,6 +21,8 @@ services:
       - "8000:8000"
     depends_on:
       - mongo
+    networks:
+      - app_network
 
   frontend:
     build: ../frontend
@@ -26,6 +33,13 @@ services:
       - "5173:80"
     depends_on:
       - backend
+    networks:
+      - app_network
 
 volumes:
   mongo_data:
+  mongo_config:
+
+networks:
+  app_network:
+    driver: bridge
