@@ -1,0 +1,62 @@
+"""
+Event model representing an event in the database.
+Only organizers and admins can create/modify events.
+"""
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
+from enum import Enum
+
+
+class EventStatus(str, Enum):
+    DRAFT = "draft"
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+
+class EventCategory(str, Enum):
+    ACADEMIC = "academic"
+    SPORTS = "sports"
+    CULTURAL = "cultural"
+    WORKSHOP = "workshop"
+    SEMINAR = "seminar"
+    SOCIAL = "social"
+    CAREER = "career"
+    OTHER = "other"
+
+
+class Event(BaseModel):
+    event_id: str = Field(..., description="Unique event identifier")
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, description="Event description")
+    category: Optional[EventCategory] = Field(None, description="Event category")
+    location: str = Field(..., min_length=1, max_length=200)
+    banner: Optional[str] = Field(None, description="URL to event banner image")
+    start_time: datetime = Field(..., description="Event start date and time")
+    end_time: Optional[datetime] = Field(None, description="Event end date and time")
+    capacity: int = Field(..., gt=0, description="Maximum number of participants")
+    status: EventStatus = Field(default=EventStatus.DRAFT)
+    organizer_id: str = Field(..., description="Directory ID of the organizer")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "event_id": "evt_123456",
+                "title": "Tech Talk: AI in Healthcare",
+                "description": "Join us for an exciting discussion about AI applications in healthcare",
+                "category": "seminar",
+                "location": "Stamp Student Union, Room 2400",
+                "banner": "https://example.com/banners/tech-talk.jpg",
+                "start_time": "2025-12-01T18:00:00",
+                "end_time": "2025-12-01T20:00:00",
+                "capacity": 100,
+                "status": "draft",
+                "organizer_id": "118234567",
+                "created_at": "2025-11-14T10:00:00",
+                "updated_at": "2025-11-14T10:00:00"
+            }
+        }

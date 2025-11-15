@@ -1,0 +1,53 @@
+"""
+Event request/response schemas for API.
+"""
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
+from app.models.event import EventCategory, EventStatus
+
+
+class CreateEventRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    category: Optional[EventCategory] = None
+    location: str = Field(..., min_length=1, max_length=200)
+    banner: Optional[str] = None
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    capacity: int = Field(..., gt=0)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Tech Talk: AI in Healthcare",
+                "description": "Join us for an exciting discussion about AI applications in healthcare",
+                "category": "seminar",
+                "location": "Stamp Student Union, Room 2400",
+                "banner": "https://example.com/banners/tech-talk.jpg",
+                "start_time": "2025-12-01T18:00:00",
+                "end_time": "2025-12-01T20:00:00",
+                "capacity": 100
+            }
+        }
+
+
+class UpdateEventRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+    category: Optional[EventCategory] = None
+    location: Optional[str] = Field(None, min_length=1, max_length=200)
+    banner: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    capacity: Optional[int] = Field(None, gt=0)
+    status: Optional[EventStatus] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Tech Talk: AI in Healthcare (Updated)",
+                "capacity": 150,
+                "status": "approved"
+            }
+        }
