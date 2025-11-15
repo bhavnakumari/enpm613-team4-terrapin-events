@@ -70,6 +70,8 @@ async def create_event(
         banner=event_data.banner,
         start_time=event_data.start_time,
         end_time=event_data.end_time,
+        registration_open_time=event_data.registration_open_time,
+        registration_close_time=event_data.registration_close_time,
         capacity=event_data.capacity,
         status=EventStatus.DRAFT,
         organizer_id=user["directory_id"],

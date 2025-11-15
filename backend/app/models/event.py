@@ -36,6 +36,8 @@ class Event(BaseModel):
     banner: Optional[str] = Field(None, description="URL to event banner image")
     start_time: datetime = Field(..., description="Event start date and time")
     end_time: Optional[datetime] = Field(None, description="Event end date and time")
+    registration_open_time: Optional[datetime] = Field(None, description="When registration opens")
+    registration_close_time: Optional[datetime] = Field(None, description="When registration closes")
     capacity: int = Field(..., gt=0, description="Maximum number of participants")
     status: EventStatus = Field(default=EventStatus.DRAFT)
     organizer_id: str = Field(..., description="Directory ID of the organizer")
@@ -53,6 +55,8 @@ class Event(BaseModel):
                 "banner": "https://example.com/banners/tech-talk.jpg",
                 "start_time": "2025-12-01T18:00:00",
                 "end_time": "2025-12-01T20:00:00",
+                "registration_open_time": "2025-11-20T00:00:00",
+                "registration_close_time": "2025-11-30T23:59:59",
                 "capacity": 100,
                 "status": "draft",
                 "organizer_id": "118234567",

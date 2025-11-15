@@ -15,6 +15,8 @@ class CreateEventRequest(BaseModel):
     banner: Optional[str] = None
     start_time: datetime
     end_time: Optional[datetime] = None
+    registration_open_time: Optional[datetime] = None
+    registration_close_time: Optional[datetime] = None
     capacity: int = Field(..., gt=0)
 
     class Config:
@@ -27,6 +29,8 @@ class CreateEventRequest(BaseModel):
                 "banner": "https://example.com/banners/tech-talk.jpg",
                 "start_time": "2025-12-01T18:00:00",
                 "end_time": "2025-12-01T20:00:00",
+                "registration_open_time": "2025-11-20T00:00:00",
+                "registration_close_time": "2025-11-30T23:59:59",
                 "capacity": 100
             }
         }
@@ -40,6 +44,8 @@ class UpdateEventRequest(BaseModel):
     banner: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    registration_open_time: Optional[datetime] = None
+    registration_close_time: Optional[datetime] = None
     capacity: Optional[int] = Field(None, gt=0)
     status: Optional[EventStatus] = None
 

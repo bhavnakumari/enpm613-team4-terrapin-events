@@ -51,6 +51,13 @@ class DatabaseManager:
             await self.db.events.create_index("status")
             await self.db.events.create_index("start_time")
             
+            # Registration indexes
+            await self.db.registrations.create_index("registration_id", unique=True)
+            await self.db.registrations.create_index("event_id")
+            await self.db.registrations.create_index("user_id")
+            await self.db.registrations.create_index([("event_id", 1), ("user_id", 1)])
+            await self.db.registrations.create_index("status")
+            
             logger.info("Database indexes created successfully")
         except Exception as e:
             logger.warning(f"Error creating indexes: {e}")
