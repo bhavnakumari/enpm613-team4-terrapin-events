@@ -6,14 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
 import secrets
+import logging
 
 from app.database import get_db
 from app.schemas.event import CreateEventRequest, UpdateEventRequest
 from app.models.event import Event, EventStatus
-from app.utils.security import get_current_user
+from app.utils.security import decode_access_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from app.api.auth import get_current_user   # 👈 ADD THIS
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
-
+security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 async def require_organizer_or_admin(user: dict = Depends(get_current_user)) -> dict:
     """
@@ -119,16 +124,27 @@ async def get_all_events(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Get all events (public endpoint).
-    
-    Returns all events sorted by start time (newest first).
+    Return all events in the system.
+    Drops Mongo _id and safely converts to Event models.
+    Any malformed events are logged and skipped instead of causing 500.
     """
-    events = []
-    cursor = db.events.find({}).sort("start_time", -1)
-    
+    events: list[Event] = []
+
+    # Drop Mongo's internal _id field to avoid schema mismatch
+    cursor = db.events.find({}, {"_id": 0})
+
     async for event_doc in cursor:
-        events.append(Event(**event_doc))
-    
+        try:
+            events.append(Event(**event_doc))
+        except Exception as e:
+            # Log and skip bad docs instead of crashing
+            logger.error(
+                "Failed to parse event from DB (event_id=%s): %s",
+                event_doc.get("event_id"),
+                e,
+            )
+            continue
+
     return events
 
 

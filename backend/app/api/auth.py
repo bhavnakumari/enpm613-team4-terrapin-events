@@ -1,16 +1,42 @@
 """
 Authentication endpoints for mock CAS login.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
 
 from app.database import get_db
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.models.user import UserInDB, UserPublic
 from app.utils.security import verify_password, create_access_token
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.database import get_db
+from app.utils.security import decode_access_token
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    token = credentials.credentials
+    token_data = decode_access_token(token)
+    if not token_data:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+
+    user = await db.users.find_one({"directory_id": token_data.directory_id})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
+    return user
 
 
 @router.post("/login", response_model=TokenResponse)
