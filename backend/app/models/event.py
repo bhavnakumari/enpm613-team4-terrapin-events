@@ -41,7 +41,9 @@ class Event(BaseModel):
     capacity: int = Field(..., gt=0, description="Maximum number of participants")
     status: EventStatus = Field(default=EventStatus.DRAFT)
     organizer_id: str = Field(..., description="Directory ID of the organizer")
+    organizer_email: str = Field(..., description="Email of the organizer for notifications")
     requested_admin_id: Optional[str] = Field(None, description="Directory ID of admin from whom approval is requested")
+    requested_admin_email: Optional[str] = Field(None, description="Email of requested admin for approval notifications")
     approved_by_admin_id: Optional[str] = Field(None, description="Directory ID of admin who approved/rejected the event")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -62,7 +64,9 @@ class Event(BaseModel):
                 "capacity": 100,
                 "status": "draft",
                 "organizer_id": "118234567",
-                "requested_admin_id": "admin",
+                "organizer_email": "organizer@umd.edu",
+                "requested_admin_id": "118000001",
+                "requested_admin_email": "admin@umd.edu",
                 "approved_by_admin_id": None,
                 "created_at": "2025-11-14T10:00:00",
                 "updated_at": "2025-11-14T10:00:00"

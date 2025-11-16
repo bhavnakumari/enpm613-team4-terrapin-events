@@ -43,7 +43,8 @@ async def create_event(
     Organizers can optionally specify which admin should review their event.
     New events start with status=DRAFT.
     """
-    # Validate requested admin exists if provided
+    # Validate requested admin exists if provided and get admin email
+    requested_admin_email = None
     if event_data.requested_admin_id:
         admin_user = await db.users.find_one({"directory_id": event_data.requested_admin_id})
         if not admin_user:
@@ -56,9 +57,10 @@ async def create_event(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"User '{event_data.requested_admin_id}' is not an admin"
             )
+        requested_admin_email = admin_user["email"]
     
     # Validate time constraints
-    if event_data.end_time <= event_data.start_time:
+    if event_data.end_time and event_data.end_time <= event_data.start_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Event end time must be after start time"
@@ -90,7 +92,9 @@ async def create_event(
         capacity=event_data.capacity,
         status=EventStatus.DRAFT,
         organizer_id=user["directory_id"],
+        organizer_email=user["email"],
         requested_admin_id=event_data.requested_admin_id,
+        requested_admin_email=requested_admin_email,
         approved_by_admin_id=None,
         created_at=current_time,
         updated_at=current_time

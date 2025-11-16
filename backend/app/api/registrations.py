@@ -104,6 +104,7 @@ async def register_for_event(
         registration_id=registration_id,
         event_id=event_id,
         user_id=user["directory_id"],
+        user_email=user["email"],
         status=registration_status,
         waitlist_position=waitlist_position,
         registered_at=datetime.utcnow()
@@ -121,13 +122,6 @@ async def get_event_registrations(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """
-    Get all registrations for an event.
-    
-    Only event organizer or admin can view registrations.
-    Returns registrations sorted by registration time (earliest first).
-    """
-    # Check if event exists
     event_doc = await db.events.find_one({"event_id": event_id})
     if not event_doc:
         raise HTTPException(
@@ -159,13 +153,7 @@ async def get_my_registrations(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    """
-    Get current user's active registrations.
-    
-    Returns all active (registered or waitlisted) registrations for the current user.
-    Excludes cancelled registrations.
-    Sorted by most recent first.
-    """
+    # Fetch all registrations for this user
     registrations = []
     cursor = db.registrations.find({
         "user_id": user["directory_id"],
@@ -227,6 +215,9 @@ async def cancel_registration(
         })
         
         if first_waitlisted:
+            # NOTIFICATION: Person being promoted from waitlist (user_email available)
+            promoted_email = first_waitlisted.get("user_email")
+            
             # Promote to registered
             await db.registrations.update_one(
                 {"registration_id": first_waitlisted["registration_id"]},
