@@ -29,6 +29,14 @@ async def require_organizer_or_admin(user: dict = Depends(get_current_user)) -> 
         )
     return user
 
+async def require_admin(user: dict = Depends(get_current_user)):
+    """Allow only admins to perform this action."""
+    if user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can approve or reject events"
+        )
+    return user
 
 @router.post("/", response_model=Event, status_code=status.HTTP_201_CREATED)
 async def create_event(
@@ -215,6 +223,75 @@ async def update_event(
     # Fetch and return updated event
     updated_event = await db.events.find_one({"event_id": event_id})
     return Event(**updated_event)
+
+@router.post("/{event_id}/approve", response_model=Event)
+async def approve_event(
+    event_id: str,
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin-only: mark an event as APPROVED so that participants can register.
+    """
+    # Fetch event
+    event_doc = await db.events.find_one({"event_id": event_id})
+    if not event_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Event with ID '{event_id}' not found"
+        )
+
+    event = Event(**event_doc)
+
+    # Optional guards if you want them
+    if event.status == EventStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled events cannot be approved"
+        )
+
+    # Set status to APPROVED
+    await db.events.update_one(
+        {"event_id": event_id},
+        {"$set": {"status": EventStatus.APPROVED, "updated_at": datetime.utcnow()}}
+    )
+
+    updated_doc = await db.events.find_one({"event_id": event_id})
+    return Event(**updated_doc)
+
+@router.post("/{event_id}/reject", response_model=Event)
+async def reject_event(
+    event_id: str,
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin-only: mark an event as REJECTED so that it never becomes visible for registration.
+    """
+    # Fetch event
+    event_doc = await db.events.find_one({"event_id": event_id})
+    if not event_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Event with ID '{event_id}' not found"
+        )
+
+    event = Event(**event_doc)
+
+    if event.status == EventStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled events cannot be rejected"
+        )
+
+    # Set status to REJECTED
+    await db.events.update_one(
+        {"event_id": event_id},
+        {"$set": {"status": EventStatus.REJECTED, "updated_at": datetime.utcnow()}}
+    )
+
+    updated_doc = await db.events.find_one({"event_id": event_id})
+    return Event(**updated_doc)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)

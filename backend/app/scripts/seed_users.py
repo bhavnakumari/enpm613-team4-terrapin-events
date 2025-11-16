@@ -1,3 +1,10 @@
+"""
+Seed script to populate test users in the database.
+Run this once to create participant, organizer, and admin users.
+
+Usage:
+    python -m app.scripts.seed_users
+"""
 import asyncio
 import sys
 from pathlib import Path
@@ -42,6 +49,10 @@ async def seed_users():
             "password_hash": hash_password("participant2"),
             "email": "participant2@umd.edu",
             "first_name": "Vineet",
+            "directory_id": "118123456",
+            "password_hash": hash_password("participant123"),
+            "email": "appsbekar@gmail.com",
+            "first_name": "John",
             "last_name": "Doe",
             "role": "participant"
         },
@@ -80,7 +91,7 @@ async def seed_users():
     print("\n1. PARTICIPANT")
     print("   Directory ID: 118123456")
     print("   Password: participant123")
-    print("   Email: participant@umd.edu")
+    print("   Email: appsbekar@gmail.com")
     
     print("\n2. ORGANIZER")
     print("   Directory ID: 118234567")

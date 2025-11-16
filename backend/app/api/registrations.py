@@ -11,6 +11,11 @@ from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
 from app.models.event import Event
 from app.utils.security import get_current_user
+from app.utils.security import decode_access_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from app.utils.email import send_registration_email
+
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
 
@@ -23,12 +28,12 @@ async def register_for_event(
 ):
     """
     Register for an event.
-    
+
     Automatically handles:
     - Registration validation (event status, time window, capacity)
     - Waitlisting when event is full
     - Duplicate registration prevention
-    
+
     Returns:
         Registration object with status (registered or waitlisted)
     """
@@ -112,7 +117,20 @@ async def register_for_event(
     
     # Insert into database
     await db.registrations.insert_one(registration.model_dump())
-    
+
+    # Fire off email in the background (do NOT block the response)
+    # user is a MongoDB document with an "email" field
+    participant_email = user.get("email")
+    if participant_email:
+        background_tasks.add_task(
+            send_registration_email,
+            to_email=participant_email,
+            event_title=event.title,
+            event_start_time=event.start_time,
+            event_location=event.location,
+            status=registration.status,
+        )
+
     return registration
 
 
@@ -174,12 +192,12 @@ async def cancel_registration(
 ):
     """
     Cancel registration for an event.
-    
+
     Automatically handles:
     - Marking registration as cancelled
     - Promoting first waitlisted person if a spot opens up
     - Updating waitlist positions for remaining people
-    
+
     Logic:
     - If user was REGISTERED: Promote person at waitlist position 1
     - If user was WAITLISTED: Decrement positions for people after them
@@ -217,7 +235,7 @@ async def cancel_registration(
         if first_waitlisted:
             # NOTIFICATION: Person being promoted from waitlist (user_email available)
             promoted_email = first_waitlisted.get("user_email")
-            
+
             # Promote to registered
             await db.registrations.update_one(
                 {"registration_id": first_waitlisted["registration_id"]},
