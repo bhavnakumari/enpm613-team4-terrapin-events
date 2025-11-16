@@ -46,10 +46,6 @@ async def seed_users():
         },
          {
             "directory_id": "vineet2",
-            "password_hash": hash_password("participant2"),
-            "email": "participant2@umd.edu",
-            "first_name": "Vineet",
-            "directory_id": "118123456",
             "password_hash": hash_password("participant123"),
             "email": "appsbekar@gmail.com",
             "first_name": "John",
