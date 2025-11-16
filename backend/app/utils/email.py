@@ -2,10 +2,13 @@ from datetime import datetime
 from email.message import EmailMessage
 import smtplib
 import ssl
+import logging
 from typing import Optional
 
 from app.config import settings
 from app.models.registration import RegistrationStatus
+
+logger = logging.getLogger(__name__)
 
 
 def send_registration_email(
@@ -16,15 +19,16 @@ def send_registration_email(
     status: RegistrationStatus,
 ):
     """
-    Sends a simple email to the participant after registration / waitlist.
-    This is a synchronous function intended to be run in a FastAPI BackgroundTask.
+    Sends an email to the participant after registration / waitlist.
+    Intended to be called as a FastAPI BackgroundTask.
     """
 
-    # If email is not configured, just skip silently (avoid breaking registration)
+    # If email is not configured, do nothing (avoid breaking registration)
     if not settings.SMTP_HOST or not settings.SMTP_FROM_EMAIL:
+        logger.warning("SMTP not configured; skipping registration email.")
         return
 
-    # Human-friendly status text
+    # Pretty status line
     if status == RegistrationStatus.REGISTERED:
         status_line = "Your registration is CONFIRMED."
     elif status == RegistrationStatus.WAITLISTED:
@@ -32,12 +36,15 @@ def send_registration_email(
     else:
         status_line = f"Your registration status is: {status.value}"
 
-    # Build email body
-    when = event_start_time.strftime("%A, %B %d %Y, %I:%M %p") if event_start_time else "TBA"
+    # Format event date/time
+    if event_start_time:
+        when = event_start_time.strftime("%A, %B %d %Y, %I:%M %p")
+    else:
+        when = "To be announced"
 
     body = f"""Hello,
 
-You have successfully { 'registered for' if status == RegistrationStatus.REGISTERED else 'requested to join' } the event:
+You have successfully {'registered for' if status == RegistrationStatus.REGISTERED else 'requested to join'} the event:
 
     "{event_title}"
 
@@ -50,7 +57,7 @@ Event details:
 
 If you did not initiate this registration, please contact the organizers.
 
-Best,
+Best regards,
 {settings.SMTP_FROM_NAME}
 """
 
@@ -62,8 +69,13 @@ Best,
 
     context = ssl.create_default_context()
 
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-        server.starttls(context=context)
-        if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        server.send_message(msg)
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls(context=context)
+            if settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            server.send_message(msg)
+        logger.info("Registration email sent to %s for event '%s'", to_email, event_title)
+    except Exception as e:
+        # Log but never crash the request
+        logger.error("Failed to send registration email to %s: %s", to_email, e)

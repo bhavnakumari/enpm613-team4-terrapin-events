@@ -2,20 +2,17 @@
 Registration endpoints.
 Users can register for events.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
 from app.models.event import Event
-from app.utils.security import get_current_user
-from app.utils.security import decode_access_token
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from app.utils.email import send_registration_email
-
+from app.api.events import get_current_user  # 👈 reuse the existing helper
+from fastapi.security import HTTPAuthorizationCredentials  # optional, may be unused
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
 
@@ -23,88 +20,92 @@ router = APIRouter(prefix="/api/events", tags=["Registrations"])
 @router.post("/{event_id}/register", response_model=Registration, status_code=status.HTTP_201_CREATED)
 async def register_for_event(
     event_id: str,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Register for an event.
-
-    Automatically handles:
-    - Registration validation (event status, time window, capacity)
-    - Waitlisting when event is full
-    - Duplicate registration prevention
-
-    Returns:
-        Registration object with status (registered or waitlisted)
+    Register the current user for an event.
+    Handles capacity, waitlist, and registration window checks.
+    Also triggers a confirmation email in the background.
     """
-    # Check if event exists
+
+    # 1. Check if event exists
     event_doc = await db.events.find_one({"event_id": event_id})
     if not event_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Event with ID '{event_id}' not found"
         )
-    
+
     event = Event(**event_doc)
-    
-    # Check if event is approved
+
+    # 2. Check if event is approved
     if event.status != "approved":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot register for events that are not approved"
         )
-    
-    # Check registration window
-    current_time = datetime.utcnow()
-    
-    if event.registration_open_time and current_time < event.registration_open_time:
+
+    # 3. Check registration window (timezone-safe)
+    current_time = datetime.now(timezone.utc)
+
+    open_time = event.registration_open_time
+    close_time = event.registration_close_time
+
+    if open_time and open_time.tzinfo is None:
+        open_time = open_time.replace(tzinfo=timezone.utc)
+
+    if close_time and close_time.tzinfo is None:
+        close_time = close_time.replace(tzinfo=timezone.utc)
+
+    if open_time and current_time < open_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration has not opened yet"
         )
-    
-    if event.registration_close_time and current_time > event.registration_close_time:
+
+    if close_time and current_time > close_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration has closed"
         )
-    
-    # Check if user already registered
+
+    # 4. Check if user already registered (registered or waitlisted)
     existing_registration = await db.registrations.find_one({
         "event_id": event_id,
         "user_id": user["directory_id"],
         "status": {"$in": ["registered", "waitlisted"]}
     })
-    
+
     if existing_registration:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You are already registered for this event"
         )
-    
-    # Count current registrations (not waitlisted or cancelled)
+
+    # 5. Count current confirmed registrations
     registered_count = await db.registrations.count_documents({
         "event_id": event_id,
         "status": "registered"
     })
-    
-    # Determine registration status and waitlist position
+
+    # 6. Decide registration status and waitlist position
     registration_status = RegistrationStatus.REGISTERED
     waitlist_position = None
-    
+
     if registered_count >= event.capacity:
         registration_status = RegistrationStatus.WAITLISTED
-        # Calculate waitlist position (count existing waitlisted users + 1)
         waitlisted_count = await db.registrations.count_documents({
             "event_id": event_id,
             "status": "waitlisted"
         })
         waitlist_position = waitlisted_count + 1
-    
-    # Generate unique registration ID
+
+    # 7. Generate unique registration ID
     registration_id = f"reg_{secrets.token_hex(6)}"
-    
-    # Create registration
+
+    # 8. Build Registration model (includes user_email)
     registration = Registration(
         registration_id=registration_id,
         event_id=event_id,
@@ -112,14 +113,13 @@ async def register_for_event(
         user_email=user["email"],
         status=registration_status,
         waitlist_position=waitlist_position,
-        registered_at=datetime.utcnow()
+        registered_at=current_time,
     )
-    
-    # Insert into database
+
+    # 9. Insert into database
     await db.registrations.insert_one(registration.model_dump())
 
-    # Fire off email in the background (do NOT block the response)
-    # user is a MongoDB document with an "email" field
+    # 10. Send confirmation / waitlist email in the background
     participant_email = user.get("email")
     if participant_email:
         background_tasks.add_task(
