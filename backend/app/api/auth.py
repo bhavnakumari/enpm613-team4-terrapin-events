@@ -29,17 +29,20 @@ async def login(
     
     user = UserInDB(**user_doc)
     
+    # Verify password
     if not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid directory ID or password"
         )
     
+    # Update last login timestamp
     await db.users.update_one(
         {"directory_id": credentials.directory_id},
         {"$set": {"last_login": datetime.utcnow()}}
     )
     
+    # Create JWT access token
     access_token = create_access_token(
         data={
             "directory_id": user.directory_id,
@@ -47,6 +50,7 @@ async def login(
         }
     )
     
+    # Return token and user profile
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -55,6 +59,12 @@ async def login(
             email=user.email,
             first_name=user.first_name,
             last_name=user.last_name,
-            role=user.role
+            role=user.role,
+            major=user_doc.get("major"),
+            year=user_doc.get("year"),
+            pronouns=user_doc.get("pronouns"),
+            phone=user_doc.get("phone"),
+            address=user_doc.get("address"),
+            bio=user_doc.get("bio")
         )
     )

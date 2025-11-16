@@ -18,6 +18,7 @@ class CreateEventRequest(BaseModel):
     registration_open_time: Optional[datetime] = None
     registration_close_time: Optional[datetime] = None
     capacity: int = Field(..., gt=0)
+    requested_admin_id: Optional[str] = Field(None, description="Directory ID of admin from whom approval is requested")
 
     class Config:
         json_schema_extra = {
@@ -31,7 +32,8 @@ class CreateEventRequest(BaseModel):
                 "end_time": "2025-12-01T20:00:00",
                 "registration_open_time": "2025-11-20T00:00:00",
                 "registration_close_time": "2025-11-30T23:59:59",
-                "capacity": 100
+                "capacity": 100,
+                "requested_admin_id": "admin"
             }
         }
 

@@ -1,10 +1,3 @@
-"""
-Seed script to populate test users in the database.
-Run this once to create participant, organizer, and admin users.
-
-Usage:
-    python -m app.scripts.seed_users
-"""
 import asyncio
 import sys
 from pathlib import Path
@@ -29,23 +22,39 @@ async def seed_users():
     # Test users with different roles
     test_users = [
         {
-            "directory_id": "118123456",
-            "password_hash": hash_password("participant123"),
+            "directory_id": "vineet",
+            "password_hash": hash_password("participant"),
             "email": "participant@umd.edu",
-            "first_name": "John",
+            "first_name": "Vineet",
+            "last_name": "Doe",
+            "role": "participant"
+        },
+         {
+            "directory_id": "vineet1",
+            "password_hash": hash_password("participant1"),
+            "email": "participant1@umd.edu",
+            "first_name": "Vineet",
+            "last_name": "Doe",
+            "role": "participant"
+        },
+         {
+            "directory_id": "vineet2",
+            "password_hash": hash_password("participant2"),
+            "email": "participant2@umd.edu",
+            "first_name": "Vineet",
             "last_name": "Doe",
             "role": "participant"
         },
         {
-            "directory_id": "118234567",
-            "password_hash": hash_password("organizer123"),
+            "directory_id": "organiser",
+            "password_hash": hash_password("organizer2"),
             "email": "organizer@umd.edu",
             "first_name": "Jane",
             "last_name": "Smith",
             "role": "organizer"
         },
         {
-            "directory_id": "118345678",
+            "directory_id": "admin",
             "password_hash": hash_password("admin123"),
             "email": "admin@umd.edu",
             "first_name": "Admin",

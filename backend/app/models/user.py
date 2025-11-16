@@ -14,6 +14,16 @@ class UserRole(str, Enum):
     ADMIN = "admin"
 
 
+class AcademicYear(str, Enum):
+    FRESHMAN = "freshman"
+    SOPHOMORE = "sophomore"
+    JUNIOR = "junior"
+    SENIOR = "senior"
+    GRADUATE = "graduate"
+    FACULTY = "faculty"
+    STAFF = "staff"
+
+
 class UserInDB(BaseModel):
     directory_id: str = Field(..., description="UMD Directory ID (unique identifier)")
     password_hash: str = Field(..., description="Bcrypt hashed password")
@@ -21,6 +31,15 @@ class UserInDB(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     role: UserRole = Field(default=UserRole.PARTICIPANT)
+    
+    # University-specific profile fields (optional, editable)
+    major: Optional[str] = Field(None, max_length=100, description="Academic major/department")
+    year: Optional[AcademicYear] = Field(None, description="Academic year or affiliation")
+    pronouns: Optional[str] = Field(None, max_length=50, description="Preferred pronouns")
+    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
+    address: Optional[str] = Field(None, max_length=500, description="Mailing address")
+    bio: Optional[str] = Field(None, max_length=500, description="Short bio or description")
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
 
@@ -33,7 +52,12 @@ class UserInDB(BaseModel):
                 "first_name": "John",
                 "last_name": "Doe",
                 "role": "participant",
-                "is_active": True
+                "major": "Computer Science",
+                "year": "junior",
+                "pronouns": "he/him",
+                "phone": "+1-301-555-0123",
+                "address": "1234 Campus Drive, College Park, MD 20742",
+                "bio": "CS student interested in web development and AI"
             }
         }
 
@@ -48,6 +72,12 @@ class UserPublic(BaseModel):
     first_name: str
     last_name: str
     role: UserRole
+    major: Optional[str] = None
+    year: Optional[AcademicYear] = None
+    pronouns: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    bio: Optional[str] = None
 
     class Config:
         json_schema_extra = {
@@ -57,6 +87,11 @@ class UserPublic(BaseModel):
                 "first_name": "John",
                 "last_name": "Doe",
                 "role": "participant",
-                "is_active": True
+                "major": "Computer Science",
+                "year": "junior",
+                "pronouns": "he/him",
+                "phone": "+1-301-555-0123",
+                "address": "1234 Campus Drive, College Park, MD 20742",
+                "bio": "CS student interested in web development and AI"
             }
         }

@@ -10,36 +10,9 @@ import secrets
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
 from app.models.event import Event
-from app.utils.security import decode_access_token
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.utils.security import get_current_user
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
-security = HTTPBearer()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """Extract and validate user from JWT token."""
-    token = credentials.credentials
-    token_data = decode_access_token(token)
-    
-    if not token_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
-    
-    # Get full user info from database
-    user = await db.users.find_one({"directory_id": token_data.directory_id})
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    
-    return user
 
 
 @router.post("/{event_id}/register", response_model=Registration, status_code=status.HTTP_201_CREATED)
@@ -48,7 +21,17 @@ async def register_for_event(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-
+    """
+    Register for an event.
+    
+    Automatically handles:
+    - Registration validation (event status, time window, capacity)
+    - Waitlisting when event is full
+    - Duplicate registration prevention
+    
+    Returns:
+        Registration object with status (registered or waitlisted)
+    """
     # Check if event exists
     event_doc = await db.events.find_one({"event_id": event_id})
     if not event_doc:
@@ -138,6 +121,13 @@ async def get_event_registrations(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
+    """
+    Get all registrations for an event.
+    
+    Only event organizer or admin can view registrations.
+    Returns registrations sorted by registration time (earliest first).
+    """
+    # Check if event exists
     event_doc = await db.events.find_one({"event_id": event_id})
     if not event_doc:
         raise HTTPException(
@@ -169,7 +159,13 @@ async def get_my_registrations(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
-    # Fetch all registrations for this user
+    """
+    Get current user's active registrations.
+    
+    Returns all active (registered or waitlisted) registrations for the current user.
+    Excludes cancelled registrations.
+    Sorted by most recent first.
+    """
     registrations = []
     cursor = db.registrations.find({
         "user_id": user["directory_id"],
@@ -188,6 +184,19 @@ async def cancel_registration(
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
+    """
+    Cancel registration for an event.
+    
+    Automatically handles:
+    - Marking registration as cancelled
+    - Promoting first waitlisted person if a spot opens up
+    - Updating waitlist positions for remaining people
+    
+    Logic:
+    - If user was REGISTERED: Promote person at waitlist position 1
+    - If user was WAITLISTED: Decrement positions for people after them
+    """
+    # Find user's active registration
     registration_doc = await db.registrations.find_one({
         "event_id": event_id,
         "user_id": user["directory_id"],
