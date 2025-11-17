@@ -10,7 +10,11 @@ import secrets
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
 from app.models.event import Event
-from app.utils.email import send_registration_email, send_cancellation_email
+from app.utils.email import (
+    send_registration_email,
+    send_cancellation_email,
+    send_waitlist_promotion_email,
+)
 from app.api.events import get_current_user
 from fastapi.security import HTTPAuthorizationCredentials  # optional, may be unused
 
@@ -193,7 +197,9 @@ async def cancel_registration(
 ):
     """
     Cancel the current user's registration for an event.
-    Adjusts waitlist and sends a cancellation email.
+    Adjusts waitlist and sends:
+      - cancellation email to the user cancelling
+      - waitlist promotion email (if someone moves from WAITLISTED -> REGISTERED)
     """
     # Find active registration
     registration_doc = await db.registrations.find_one({
@@ -208,7 +214,7 @@ async def cancel_registration(
             detail="No active registration found for this event"
         )
 
-    # Get event details for email
+    # Get event details for emails
     event_doc = await db.events.find_one({"event_id": event_id})
     event_title = event_doc["title"] if event_doc else "Unknown Event"
     event_start_time = event_doc.get("start_time") if event_doc else None
@@ -216,13 +222,15 @@ async def cancel_registration(
 
     registration = Registration(**registration_doc)
 
-    # Mark registration as cancelled
+    # 1️⃣ Mark this user's registration as CANCELLED
     await db.registrations.update_one(
         {"registration_id": registration.registration_id},
         {"$set": {"status": "cancelled", "waitlist_position": None}}
     )
 
-    # If user was REGISTERED, promote first waitlisted person
+    # 2️⃣ If user was REGISTERED → promote first WAITLISTED
+    promoted_user_email = None  # we'll fill this if someone is promoted
+
     if registration.status == RegistrationStatus.REGISTERED:
         # Find first person in waitlist (position 1)
         first_waitlisted = await db.registrations.find_one({
@@ -241,6 +249,9 @@ async def cancel_registration(
                 }}
             )
 
+            # Capture their email for notification
+            promoted_user_email = first_waitlisted.get("user_email")
+
             # Update all remaining waitlist positions (decrement by 1)
             waitlist_cursor = db.registrations.find({
                 "event_id": event_id,
@@ -254,7 +265,7 @@ async def cancel_registration(
                     {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
                 )
 
-    # If user was WAITLISTED, update positions for people after them
+    # 3️⃣ If user was WAITLISTED → just shift positions after them
     elif registration.status == RegistrationStatus.WAITLISTED:
         waitlist_cursor = db.registrations.find({
             "event_id": event_id,
@@ -268,12 +279,22 @@ async def cancel_registration(
                 {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
             )
 
-    # 🔔 Send cancellation email in background
-    to_email = registration.user_email if hasattr(registration, "user_email") else user.get("email")
-    if to_email:
+    # 4️⃣ Send cancellation email to the user who cancelled
+    cancelling_email = registration.user_email if hasattr(registration, "user_email") else user.get("email")
+    if cancelling_email:
         background_tasks.add_task(
             send_cancellation_email,
-            to_email=to_email,
+            to_email=cancelling_email,
+            event_title=event_title,
+            event_start_time=event_start_time,
+            event_location=event_location,
+        )
+
+    # 5️⃣ If someone was promoted from waitlist → send promotion email
+    if promoted_user_email:
+        background_tasks.add_task(
+            send_waitlist_promotion_email,
+            to_email=promoted_user_email,
             event_title=event_title,
             event_start_time=event_start_time,
             event_location=event_location,
