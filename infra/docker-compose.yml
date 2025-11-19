@@ -1,0 +1,48 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: cems_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: terrapin_events
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_config:/data/configdb
+    networks:
+      - app_network
+
+  backend:
+    build: ../backend
+    container_name: cems_backend
+    env_file: ../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/app:/app/app
+    depends_on:
+      - mongo
+    networks:
+      - app_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build: ../frontend
+    container_name: cems_frontend
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+volumes:
+  mongo_data:
+  mongo_config:
+
+networks:
+  app_network:
+    driver: bridge
