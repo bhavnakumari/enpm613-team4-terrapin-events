@@ -23,7 +23,8 @@ export function EventCard({ event, onViewDetails, onToggleRSVP }: EventCardProps
   const spotsLeft = event.maxAttendees - event.attendees;
   const isAlmostFull = spotsLeft <= 10 && spotsLeft > 0;
   const isFull = spotsLeft <= 0;
-
+  
+console.log('Rendering EventCard for event:', event);
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative h-48 overflow-hidden">

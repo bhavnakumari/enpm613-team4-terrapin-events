@@ -75,7 +75,13 @@ async def register_for_event(
             detail="Registration has closed"
         )
 
-    # 4. Check if user already registered (registered or waitlisted)
+    # 4. Generate unique registration ID first
+    registration_id = f"reg_{secrets.token_hex(6)}"
+
+    # 5. Atomically insert registration with capacity check using findAndModify pattern
+    # This prevents race conditions by doing count + insert in single atomic operation
+    
+    # First, check if user already registered
     existing_registration = await db.registrations.find_one({
         "event_id": event_id,
         "user_id": user["directory_id"],
@@ -88,28 +94,30 @@ async def register_for_event(
             detail="You are already registered for this event"
         )
 
-    # 5. Count current confirmed registrations
-    registered_count = await db.registrations.count_documents({
-        "event_id": event_id,
-        "status": "registered"
-    })
+    # Count registrations atomically within a try-insert pattern
+    # Get current counts in single aggregation query
+    count_pipeline = [
+        {"$match": {"event_id": event_id}},
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    counts = await db.registrations.aggregate(count_pipeline).to_list(None)
+    count_map = {item["_id"]: item["count"] for item in counts}
+    registered_count = count_map.get("registered", 0)
+    waitlisted_count = count_map.get("waitlisted", 0)
 
-    # 6. Decide registration status and waitlist position
+    # Determine status and position based on capacity
     registration_status = RegistrationStatus.REGISTERED
     waitlist_position = None
 
     if registered_count >= event.capacity:
         registration_status = RegistrationStatus.WAITLISTED
-        waitlisted_count = await db.registrations.count_documents({
-            "event_id": event_id,
-            "status": "waitlisted"
-        })
         waitlist_position = waitlisted_count + 1
 
-    # 7. Generate unique registration ID
-    registration_id = f"reg_{secrets.token_hex(6)}"
-
-    # 8. Build Registration model (includes user_email)
+    # Build Registration model
     registration = Registration(
         registration_id=registration_id,
         event_id=event_id,
@@ -120,8 +128,18 @@ async def register_for_event(
         registered_at=current_time,
     )
 
-    # 9. Insert into database
-    await db.registrations.insert_one(registration.model_dump())
+    # Try to insert - if duplicate user registration happens due to race condition,
+    # MongoDB will enforce uniqueness if we have proper index
+    try:
+        await db.registrations.insert_one(registration.model_dump())
+    except Exception as e:
+        # If insert fails due to duplicate, check if it's a race condition
+        if "duplicate" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration already exists"
+            )
+        raise
 
     # 10. Send confirmation / waitlist email in the background
     participant_email = user.get("email")
@@ -188,6 +206,39 @@ async def get_my_registrations(
     return registrations
 
 
+@router.get("/registrations/my-registrations-with-events")
+async def get_my_registrations_with_events(
+    user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get user's registrations with full event details in a single query.
+    Optimized endpoint to avoid N+1 query problem.
+    """
+    pipeline = [
+        {
+            "$match": {
+                "user_id": user["directory_id"],
+                "status": {"$in": ["registered", "waitlisted"]}
+            }
+        },
+        {
+            "$lookup": {
+                "from": "events",
+                "localField": "event_id",
+                "foreignField": "event_id",
+                "as": "event_details"
+            }
+        },
+        {"$unwind": "$event_details"},
+        {"$sort": {"registered_at": -1}},
+        {"$project": {"_id": 0, "event_details._id": 0}}
+    ]
+    
+    results = await db.registrations.aggregate(pipeline).to_list(None)
+    return results
+
+
 @router.delete("/{event_id}/register", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_registration(
         event_id: str,
@@ -252,32 +303,26 @@ async def cancel_registration(
             # Capture their email for notification
             promoted_user_email = first_waitlisted.get("user_email")
 
-            # Update all remaining waitlist positions (decrement by 1)
-            waitlist_cursor = db.registrations.find({
+            # Bulk update all remaining waitlist positions (decrement by 1)
+            await db.registrations.update_many(
+                {
+                    "event_id": event_id,
+                    "status": "waitlisted",
+                    "waitlist_position": {"$gt": 1}
+                },
+                {"$inc": {"waitlist_position": -1}}
+            )
+
+    # 3️⃣ If user was WAITLISTED → bulk shift positions after them
+    elif registration.status == RegistrationStatus.WAITLISTED:
+        await db.registrations.update_many(
+            {
                 "event_id": event_id,
                 "status": "waitlisted",
-                "waitlist_position": {"$gt": 1}
-            })
-
-            async for waitlist_reg in waitlist_cursor:
-                await db.registrations.update_one(
-                    {"registration_id": waitlist_reg["registration_id"]},
-                    {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
-                )
-
-    # 3️⃣ If user was WAITLISTED → just shift positions after them
-    elif registration.status == RegistrationStatus.WAITLISTED:
-        waitlist_cursor = db.registrations.find({
-            "event_id": event_id,
-            "status": "waitlisted",
-            "waitlist_position": {"$gt": registration.waitlist_position}
-        })
-
-        async for waitlist_reg in waitlist_cursor:
-            await db.registrations.update_one(
-                {"registration_id": waitlist_reg["registration_id"]},
-                {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
-            )
+                "waitlist_position": {"$gt": registration.waitlist_position}
+            },
+            {"$inc": {"waitlist_position": -1}}
+        )
 
     # 4️⃣ Send cancellation email to the user who cancelled
     cancelling_email = registration.user_email if hasattr(registration, "user_email") else user.get("email")

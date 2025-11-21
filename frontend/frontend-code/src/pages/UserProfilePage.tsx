@@ -74,9 +74,9 @@ export function UserProfilePage() {
   useEffect(() => {
     const fetchRegistrations = async () => {
       try {
-        const regs = await apiClient.get<any[]>('/api/events/registrations/my-registrations');
-        const events = await Promise.all(regs.map(async (r) => {
-          const e = await eventsService.getEventById(r.event_id);
+        const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
+        const events = regsWithEvents.map(r => {
+          const e = r.event_details;
           return {
             id: r.event_id,
             title: e.title,
@@ -87,9 +87,9 @@ export function UserProfilePage() {
             category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
             ticketNumber: r.registration_id,
             registeredAt: new Date(r.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-            status: r.status === 'registered' ? 'confirmed' : 'pending',
+            status: r.status === 'registered' ? 'confirmed' as const : 'pending' as const,
           };
-        }));
+        });
         setRegistrations(events);
       } catch (err) {
         console.error('Failed to fetch registrations:', err);

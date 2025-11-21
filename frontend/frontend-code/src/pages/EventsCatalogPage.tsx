@@ -12,7 +12,7 @@ import { apiClient } from '../lib/api-client';
 import type { Event as BackendEvent } from '../types/event';
 
 
-const convertBackendEventToFrontendFormat = (apiEvent: BackendEvent): Event => {
+const convertBackendEventToFrontendFormat = (apiEvent: any): Event => {
   const eventStartDate = new Date(apiEvent.start_time);
   const eventEndDate = apiEvent.end_time ? new Date(apiEvent.end_time) : null;
   
@@ -33,17 +33,16 @@ const convertBackendEventToFrontendFormat = (apiEvent: BackendEvent): Event => {
       day: 'numeric' 
     }),
     
-
     time: eventEndDate 
       ? `${eventStartDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${eventEndDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
       : eventStartDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     
     imageUrl: apiEvent.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-    attendees: 0, // TODO: Get from registrations API later
-    maxAttendees: apiEvent.capacity, // Backend calls it "capacity", frontend calls it "maxAttendees"
+    attendees: apiEvent.attendee_count || 0,
+    maxAttendees: apiEvent.capacity,
     organizer: apiEvent.organizer_email,
     organizerId: apiEvent.organizer_id,
-    isRegistered: false, // TODO: Check if current user registered (from registrations API)
+    isRegistered: apiEvent.is_user_registered || false,
     status: apiEvent.status as any,
     createdAt: apiEvent.created_at,
   };
@@ -82,15 +81,16 @@ export function EventsCatalogPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Fetch events from backend API when page loads
+  // Fetch events with registration data from optimized catalog endpoint
   useEffect(() => {
     const loadEventsFromServer = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
-        const eventsFromAPI = await eventsService.getEventsByStatus('approved');
-        const eventsInFrontendFormat = eventsFromAPI.map(convertBackendEventToFrontendFormat);
+        // Single optimized API call - gets events with attendee counts and user registration status
+        const catalogEvents = await apiClient.get<any[]>('/api/events/catalog');
+        const eventsInFrontendFormat = catalogEvents.map(convertBackendEventToFrontendFormat);
         
         setEvents(eventsInFrontendFormat);
       } catch (err) {
@@ -114,6 +114,7 @@ export function EventsCatalogPage() {
   }, [events, searchQuery, selectedCategory]);
 
   const registeredEvents = events.filter(e => e.isRegistered);
+  console.log('Registered Events:', registeredEvents);
 
   const handleToggleRSVP = async (eventId: string) => {
     const event = events.find(e => e.id === eventId);

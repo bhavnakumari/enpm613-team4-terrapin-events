@@ -119,6 +119,160 @@ async def create_event(
     return event
 
 
+@router.get("/catalog")
+async def get_events_catalog(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Get events catalog with registration statistics and user registration status.
+    Optimized single-query endpoint using MongoDB aggregation pipeline.
+    
+    Returns:
+        List of approved events with:
+        - attendee_count: Number of confirmed registrations
+        - is_user_registered: Whether current user is registered
+        - user_registration_status: User's registration status (if registered)
+    """
+    pipeline = [
+        {"$match": {"status": "approved"}},
+        {
+            "$lookup": {
+                "from": "registrations",
+                "let": {"event_id": "$event_id"},
+                "pipeline": [
+                    {
+                        "$match": {
+                            "$expr": {
+                                "$and": [
+                                    {"$eq": ["$event_id", "$$event_id"]},
+                                    {"$eq": ["$status", "registered"]}
+                                ]
+                            }
+                        }
+                    },
+                    {"$count": "count"}
+                ],
+                "as": "registration_stats"
+            }
+        },
+        {
+            "$lookup": {
+                "from": "registrations",
+                "let": {"event_id": "$event_id"},
+                "pipeline": [
+                    {
+                        "$match": {
+                            "$expr": {
+                                "$and": [
+                                    {"$eq": ["$event_id", "$$event_id"]},
+                                    {"$eq": ["$user_id", user["directory_id"]]},
+                                    {"$in": ["$status", ["registered", "waitlisted"]]}
+                                ]
+                            }
+                        }
+                    }
+                ],
+                "as": "user_registration"
+            }
+        },
+        {
+            "$addFields": {
+                "attendee_count": {
+                    "$ifNull": [{"$arrayElemAt": ["$registration_stats.count", 0]}, 0]
+                },
+                "is_user_registered": {"$gt": [{"$size": "$user_registration"}, 0]},
+                "user_registration_status": {
+                    "$arrayElemAt": ["$user_registration.status", 0]
+                }
+            }
+        },
+        {"$project": {"_id": 0, "registration_stats": 0, "user_registration": 0}},
+        {"$sort": {"start_time": 1}}
+    ]
+    
+    events = await db.events.aggregate(pipeline).to_list(None)
+    return events
+
+
+@router.get("/categories/stats")
+async def get_category_stats(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Get event count statistics by category for approved events.
+    Optimized endpoint to avoid fetching full event objects when only counts are needed.
+    
+    Returns:
+        List of category counts: [{"category": "academic", "count": 15}, ...]
+    """
+    pipeline = [
+        {"$match": {"status": "approved"}},
+        {"$group": {
+            "_id": "$category",
+            "count": {"$sum": 1}
+        }},
+        {"$project": {
+            "category": "$_id",
+            "count": 1,
+            "_id": 0
+        }},
+        {"$sort": {"category": 1}}
+    ]
+    
+    stats = await db.events.aggregate(pipeline).to_list(None)
+    return stats
+
+
+@router.get("/admin/pending-events")
+async def get_pending_events(
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin-only endpoint to get events awaiting approval with organizer details.
+    Returns draft and pending events with embedded organizer information.
+    Optimized for admin approval workflow.
+    
+    Returns:
+        List of events with organizer_info embedded
+    """
+    pipeline = [
+        {"$match": {"status": {"$in": ["draft", "pending"]}}},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "organizer_id",
+                "foreignField": "directory_id",
+                "as": "organizer_info"
+            }
+        },
+        {"$unwind": {
+            "path": "$organizer_info",
+            "preserveNullAndEmptyArrays": True
+        }},
+        {
+            "$addFields": {
+                "organizer_name": {
+                    "$concat": [
+                        {"$ifNull": ["$organizer_info.first_name", ""]},
+                        " ",
+                        {"$ifNull": ["$organizer_info.last_name", ""]}
+                    ]
+                },
+                "organizer_department": {"$ifNull": ["$organizer_info.major", "N/A"]}
+            }
+        },
+        {"$project": {
+            "_id": 0,
+            "organizer_info._id": 0,
+            "organizer_info.password_hash": 0
+        }},
+        {"$sort": {"created_at": 1}}  # Oldest submissions first
+    ]
+    
+    events = await db.events.aggregate(pipeline).to_list(None)
+    return events
+
+
 @router.get("/", response_model=list[Event])
 async def get_all_events(
     db: AsyncIOMotorDatabase = Depends(get_db)
@@ -220,6 +374,53 @@ async def update_event(
         # Track which admin approved/rejected the event
         if update_fields["status"] in ["approved", "rejected"]:
             update_fields["approved_by_admin_id"] = user["directory_id"]
+    
+    # Handle capacity decrease - move excess registered users to waitlist
+    if "capacity" in update_fields:
+        new_capacity = update_fields["capacity"]
+        current_capacity = event_doc["capacity"]
+        
+        # Only rebalance if capacity is being decreased
+        if new_capacity < current_capacity:
+            # Count current registered users
+            registered_count = await db.registrations.count_documents({
+                "event_id": event_id,
+                "status": "registered"
+            })
+            
+            # If registered users exceed new capacity, move excess to waitlist
+            if registered_count > new_capacity:
+                # Get all registered users sorted by registration time (earliest first)
+                registered_users = await db.registrations.find(
+                    {"event_id": event_id, "status": "registered"}
+                ).sort("registered_at", 1).to_list(None)
+                
+                # Keep first 'new_capacity' users as registered, move rest to waitlist
+                users_to_keep = registered_users[:new_capacity]
+                users_to_waitlist = registered_users[new_capacity:]
+                
+                # Get current max waitlist position
+                max_waitlist = await db.registrations.find_one(
+                    {"event_id": event_id, "status": "waitlisted"},
+                    sort=[("waitlist_position", -1)]
+                )
+                next_position = (max_waitlist["waitlist_position"] if max_waitlist else 0) + 1
+                
+                # Bulk move excess users to waitlist with proper positioning
+                from pymongo import UpdateOne
+                bulk_updates = [
+                    UpdateOne(
+                        {"registration_id": user_reg["registration_id"]},
+                        {"$set": {
+                            "status": "waitlisted",
+                            "waitlist_position": next_position + idx
+                        }}
+                    )
+                    for idx, user_reg in enumerate(users_to_waitlist)
+                ]
+                
+                if bulk_updates:
+                    await db.registrations.bulk_write(bulk_updates)
     
     # Always update the updated_at timestamp
     update_fields["updated_at"] = datetime.utcnow()

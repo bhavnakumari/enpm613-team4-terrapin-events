@@ -37,24 +37,21 @@ export function ParticipantHomePage() {
           image: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
         })));
 
-        // Fetch my registrations
-        const regs = await apiClient.get<any[]>('/api/events/registrations/my-registrations');
-        const regEvents = await Promise.all(regs.slice(0, 2).map(async (r) => {
-          const e = await eventsService.getEventById(r.event_id);
-          return {
-            id: r.event_id,
-            title: e.title,
-            date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            status: r.status === 'registered' ? 'Confirmed' : 'Waitlisted',
-          };
+        // Fetch my registrations with event details (optimized single query)
+        const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
+        const regEvents = regsWithEvents.slice(0, 2).map(r => ({
+          id: r.event_id,
+          title: r.event_details.title,
+          date: new Date(r.event_details.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          status: r.status === 'registered' ? 'Confirmed' : 'Waitlisted',
         }));
         setMyRegistrations(regEvents);
 
-        // Update category counts
-        const allEvents = await eventsService.getAllEvents();
-        const categoryCounts = allEvents.reduce((acc: any, e) => {
-          const cat = e.category?.charAt(0).toUpperCase() + e.category?.slice(1);
-          acc[cat] = (acc[cat] || 0) + 1;
+        // Fetch category counts using optimized endpoint
+        const categoryStats = await apiClient.get<Array<{category: string, count: number}>>('/api/events/categories/stats');
+        const categoryCounts = categoryStats.reduce((acc: any, stat) => {
+          const cat = stat.category?.charAt(0).toUpperCase() + stat.category?.slice(1);
+          acc[cat] = stat.count;
           return acc;
         }, {});
         setCategories(prev => prev.map(c => ({ ...c, count: categoryCounts[c.name] || 0 })));
