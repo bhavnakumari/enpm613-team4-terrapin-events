@@ -7,7 +7,7 @@ export interface Event {
   time: string;
   location: string;
   imageUrl: string;
-  attendees: number;
+  attendees: number;        
   maxAttendees: number;
   organizer: string;
   organizerId: string;

@@ -81,9 +81,8 @@ console.log('Rendering EventCard for event:', event);
             className="flex-1 bg-[#E21833] hover:bg-[#C11528]"
             variant={event.isRegistered ? "secondary" : "default"}
             onClick={() => onToggleRSVP(event.id)}
-            disabled={isFull && !event.isRegistered}
           >
-            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Full' : 'RSVP'}
+            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Join Waitlist' : 'RSVP'}
           </Button>
         </div>
       </div>

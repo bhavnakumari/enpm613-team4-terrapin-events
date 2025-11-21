@@ -16,11 +16,12 @@ services:
   backend:
     build: ../backend
     container_name: cems_backend
-    env_file: ../.env
+    env_file: ../backend/.env
     ports:
       - "8000:8000"
     volumes:
       - ../backend/app:/app/app
+      - ../backend/.env:/app/.env
     depends_on:
       - mongo
     networks:

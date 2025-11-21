@@ -10,6 +10,7 @@ import { Event } from '../types';
 import { eventsService } from '../services/events.service';
 import { apiClient } from '../lib/api-client';
 import type { Event as BackendEvent } from '../types/event';
+import { toast } from 'sonner';
 
 
 const convertBackendEventToFrontendFormat = (apiEvent: any): Event => {
@@ -120,23 +121,50 @@ export function EventsCatalogPage() {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
 
+    const isCancelling = event.isRegistered;
+
     try {
-      if (event.isRegistered) {
+      if (isCancelling) {
         // Cancel registration
         await apiClient.delete(`/api/events/${eventId}/register`);
         setEvents(events.map(e => 
           e.id === eventId ? { ...e, isRegistered: false, attendees: Math.max(0, e.attendees - 1) } : e
         ));
+        
+        toast.success('Registration Cancelled', {
+          description: `You have successfully cancelled your registration for "${event.title}"`,
+          duration: 4000,
+        });
       } else {
         // Register for event
-        await apiClient.post(`/api/events/${eventId}/register`, {});
+        const response = await apiClient.post<any>(`/api/events/${eventId}/register`, {});
+        
+        const wasWaitlisted = response.status === 'waitlisted';
+        
         setEvents(events.map(e => 
-          e.id === eventId ? { ...e, isRegistered: true, attendees: e.attendees + 1 } : e
+          e.id === eventId ? { ...e, isRegistered: true, attendees: wasWaitlisted ? e.attendees : e.attendees + 1 } : e
         ));
+        
+        if (wasWaitlisted) {
+          toast.info('Added to Waitlist', {
+            description: `You've been added to the waitlist for "${event.title}". We'll notify you if a spot opens up!`,
+            duration: 5000,
+          });
+        } else {
+          toast.success('Registration Confirmed! 🎉', {
+            description: `You're all set for "${event.title}". Check your email for confirmation details.`,
+            duration: 5000,
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to toggle RSVP:', err);
-      alert(err instanceof Error ? err.message : 'Failed to update registration');
+      const errorMessage = err instanceof Error ? err.message : (isCancelling ? 'Failed to cancel registration' : 'Failed to register for event');
+      
+      toast.error(isCancelling ? 'Cancellation Failed' : 'Registration Failed', {
+        description: errorMessage,
+        duration: 4000,
+      });
     }
   };
 

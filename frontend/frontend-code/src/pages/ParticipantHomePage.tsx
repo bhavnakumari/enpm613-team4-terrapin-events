@@ -7,7 +7,6 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
 import { useState, useEffect } from 'react';
-import { eventsService } from '../services/events.service';
 import { apiClient } from '../lib/api-client';
 
 export function ParticipantHomePage() {
@@ -24,18 +23,24 @@ export function ParticipantHomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch upcoming events
-        const events = await eventsService.getUpcomingEvents();
-        setUpcomingEvents(events.slice(0, 4).map(e => ({
-          id: e.event_id,
-          title: e.title,
-          date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-          time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          location: e.location,
-          category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
-          attendees: 0,
-          image: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-        })));
+        // Fetch upcoming events from catalog (optimized endpoint with attendee counts)
+        const catalogEvents = await apiClient.get<any[]>('/api/events/catalog');
+        const now = new Date();
+        const upcoming = catalogEvents
+          .filter(e => new Date(e.start_time) > now)
+          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+          .slice(0, 4)
+          .map(e => ({
+            id: e.event_id,
+            title: e.title,
+            date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            location: e.location,
+            category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
+            attendees: e.attendee_count || 0,
+            image: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+          }));
+        setUpcomingEvents(upcoming);
 
         // Fetch my registrations with event details (optimized single query)
         const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
