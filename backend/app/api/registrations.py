@@ -2,15 +2,21 @@
 Registration endpoints.
 Users can register for events.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
 from app.models.event import Event
-from app.utils.security import get_current_user
+from app.utils.email import (
+    send_registration_email,
+    send_cancellation_email,
+    send_waitlist_promotion_email,
+)
+from app.api.events import get_current_user
+from fastapi.security import HTTPAuthorizationCredentials  # optional, may be unused
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
 
@@ -18,88 +24,92 @@ router = APIRouter(prefix="/api/events", tags=["Registrations"])
 @router.post("/{event_id}/register", response_model=Registration, status_code=status.HTTP_201_CREATED)
 async def register_for_event(
     event_id: str,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Register for an event.
-    
-    Automatically handles:
-    - Registration validation (event status, time window, capacity)
-    - Waitlisting when event is full
-    - Duplicate registration prevention
-    
-    Returns:
-        Registration object with status (registered or waitlisted)
+    Register the current user for an event.
+    Handles capacity, waitlist, and registration window checks.
+    Also triggers a confirmation email in the background.
     """
-    # Check if event exists
+
+    # 1. Check if event exists
     event_doc = await db.events.find_one({"event_id": event_id})
     if not event_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Event with ID '{event_id}' not found"
         )
-    
+
     event = Event(**event_doc)
-    
-    # Check if event is approved
+
+    # 2. Check if event is approved
     if event.status != "approved":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot register for events that are not approved"
         )
-    
-    # Check registration window
-    current_time = datetime.utcnow()
-    
-    if event.registration_open_time and current_time < event.registration_open_time:
+
+    # 3. Check registration window (timezone-safe)
+    current_time = datetime.now(timezone.utc)
+
+    open_time = event.registration_open_time
+    close_time = event.registration_close_time
+
+    if open_time and open_time.tzinfo is None:
+        open_time = open_time.replace(tzinfo=timezone.utc)
+
+    if close_time and close_time.tzinfo is None:
+        close_time = close_time.replace(tzinfo=timezone.utc)
+
+    if open_time and current_time < open_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration has not opened yet"
         )
-    
-    if event.registration_close_time and current_time > event.registration_close_time:
+
+    if close_time and current_time > close_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration has closed"
         )
-    
-    # Check if user already registered
+
+    # 4. Check if user already registered (registered or waitlisted)
     existing_registration = await db.registrations.find_one({
         "event_id": event_id,
         "user_id": user["directory_id"],
         "status": {"$in": ["registered", "waitlisted"]}
     })
-    
+
     if existing_registration:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You are already registered for this event"
         )
-    
-    # Count current registrations (not waitlisted or cancelled)
+
+    # 5. Count current confirmed registrations
     registered_count = await db.registrations.count_documents({
         "event_id": event_id,
         "status": "registered"
     })
-    
-    # Determine registration status and waitlist position
+
+    # 6. Decide registration status and waitlist position
     registration_status = RegistrationStatus.REGISTERED
     waitlist_position = None
-    
+
     if registered_count >= event.capacity:
         registration_status = RegistrationStatus.WAITLISTED
-        # Calculate waitlist position (count existing waitlisted users + 1)
         waitlisted_count = await db.registrations.count_documents({
             "event_id": event_id,
             "status": "waitlisted"
         })
         waitlist_position = waitlisted_count + 1
-    
-    # Generate unique registration ID
+
+    # 7. Generate unique registration ID
     registration_id = f"reg_{secrets.token_hex(6)}"
-    
-    # Create registration
+
+    # 8. Build Registration model (includes user_email)
     registration = Registration(
         registration_id=registration_id,
         event_id=event_id,
@@ -107,12 +117,24 @@ async def register_for_event(
         user_email=user["email"],
         status=registration_status,
         waitlist_position=waitlist_position,
-        registered_at=datetime.utcnow()
+        registered_at=current_time,
     )
-    
-    # Insert into database
+
+    # 9. Insert into database
     await db.registrations.insert_one(registration.model_dump())
-    
+
+    # 10. Send confirmation / waitlist email in the background
+    participant_email = user.get("email")
+    if participant_email:
+        background_tasks.add_task(
+            send_registration_email,
+            to_email=participant_email,
+            event_title=event.title,
+            event_start_time=event.start_time,
+            event_location=event.location,
+            status=registration.status,
+        )
+
     return registration
 
 
@@ -168,44 +190,47 @@ async def get_my_registrations(
 
 @router.delete("/{event_id}/register", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_registration(
-    event_id: str,
-    user: dict = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db)
+        event_id: str,
+        background_tasks: BackgroundTasks,
+        user: dict = Depends(get_current_user),
+        db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Cancel registration for an event.
-    
-    Automatically handles:
-    - Marking registration as cancelled
-    - Promoting first waitlisted person if a spot opens up
-    - Updating waitlist positions for remaining people
-    
-    Logic:
-    - If user was REGISTERED: Promote person at waitlist position 1
-    - If user was WAITLISTED: Decrement positions for people after them
+    Cancel the current user's registration for an event.
+    Adjusts waitlist and sends:
+      - cancellation email to the user cancelling
+      - waitlist promotion email (if someone moves from WAITLISTED -> REGISTERED)
     """
-    # Find user's active registration
+    # Find active registration
     registration_doc = await db.registrations.find_one({
         "event_id": event_id,
         "user_id": user["directory_id"],
         "status": {"$in": ["registered", "waitlisted"]}
     })
-    
+
     if not registration_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active registration found for this event"
         )
-    
+
+    # Get event details for emails
+    event_doc = await db.events.find_one({"event_id": event_id})
+    event_title = event_doc["title"] if event_doc else "Unknown Event"
+    event_start_time = event_doc.get("start_time") if event_doc else None
+    event_location = event_doc.get("location") if event_doc else "Unknown location"
+
     registration = Registration(**registration_doc)
-    
-    # Mark registration as cancelled
+
+    # 1️⃣ Mark this user's registration as CANCELLED
     await db.registrations.update_one(
         {"registration_id": registration.registration_id},
         {"$set": {"status": "cancelled", "waitlist_position": None}}
     )
-    
-    # If user was REGISTERED, promote first waitlisted person
+
+    # 2️⃣ If user was REGISTERED → promote first WAITLISTED
+    promoted_user_email = None  # we'll fill this if someone is promoted
+
     if registration.status == RegistrationStatus.REGISTERED:
         # Find first person in waitlist (position 1)
         first_waitlisted = await db.registrations.find_one({
@@ -213,11 +238,8 @@ async def cancel_registration(
             "status": "waitlisted",
             "waitlist_position": 1
         })
-        
+
         if first_waitlisted:
-            # NOTIFICATION: Person being promoted from waitlist (user_email available)
-            promoted_email = first_waitlisted.get("user_email")
-            
             # Promote to registered
             await db.registrations.update_one(
                 {"registration_id": first_waitlisted["registration_id"]},
@@ -226,33 +248,56 @@ async def cancel_registration(
                     "waitlist_position": None
                 }}
             )
-            
+
+            # Capture their email for notification
+            promoted_user_email = first_waitlisted.get("user_email")
+
             # Update all remaining waitlist positions (decrement by 1)
             waitlist_cursor = db.registrations.find({
                 "event_id": event_id,
                 "status": "waitlisted",
                 "waitlist_position": {"$gt": 1}
             })
-            
+
             async for waitlist_reg in waitlist_cursor:
                 await db.registrations.update_one(
                     {"registration_id": waitlist_reg["registration_id"]},
                     {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
                 )
-    
-    # If user was WAITLISTED, update positions for people after them
+
+    # 3️⃣ If user was WAITLISTED → just shift positions after them
     elif registration.status == RegistrationStatus.WAITLISTED:
-        # Find all waitlisted people after this user
         waitlist_cursor = db.registrations.find({
             "event_id": event_id,
             "status": "waitlisted",
             "waitlist_position": {"$gt": registration.waitlist_position}
         })
-        
+
         async for waitlist_reg in waitlist_cursor:
             await db.registrations.update_one(
                 {"registration_id": waitlist_reg["registration_id"]},
                 {"$set": {"waitlist_position": waitlist_reg["waitlist_position"] - 1}}
             )
-    
+
+    # 4️⃣ Send cancellation email to the user who cancelled
+    cancelling_email = registration.user_email if hasattr(registration, "user_email") else user.get("email")
+    if cancelling_email:
+        background_tasks.add_task(
+            send_cancellation_email,
+            to_email=cancelling_email,
+            event_title=event_title,
+            event_start_time=event_start_time,
+            event_location=event_location,
+        )
+
+    # 5️⃣ If someone was promoted from waitlist → send promotion email
+    if promoted_user_email:
+        background_tasks.add_task(
+            send_waitlist_promotion_email,
+            to_email=promoted_user_email,
+            event_title=event_title,
+            event_start_time=event_start_time,
+            event_location=event_location,
+        )
+
     return None

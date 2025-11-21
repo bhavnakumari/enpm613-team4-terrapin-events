@@ -1,3 +1,10 @@
+"""
+Seed script to populate test users in the database.
+Run this once to create participant, organizer, and admin users.
+
+Usage:
+    python -m app.scripts.seed_users
+"""
 import asyncio
 import sys
 from pathlib import Path
@@ -22,26 +29,34 @@ async def seed_users():
     # Test users with different roles
     test_users = [
         {
+            "directory_id": "bhavna",
+            "password_hash": hash_password("participant123"),
+            "email": "bhavnaphotos12@gmail.com",
+            "first_name": "Bhavna",
+            "last_name": "Kumari",
+            "role": "participant"
+        },
+        {
+            "directory_id": "abhigna",
+            "password_hash": hash_password("participant123"),
+            "email": "bhavnaphotos13@gmail.com",
+            "first_name": "Abhighna",
+            "last_name": "Kandala",
+            "role": "participant"
+        },
+        {
+            "directory_id": "teja",
+            "password_hash": hash_password("participant123"),
+            "email": "appsbekar@gmail.com",
+            "first_name": "Teja",
+            "last_name": "Tatimatla",
+            "role": "participant"
+        },
+         {
             "directory_id": "vineet",
-            "password_hash": hash_password("participant"),
-            "email": "participant@umd.edu",
-            "first_name": "Vineet",
-            "last_name": "Doe",
-            "role": "participant"
-        },
-         {
-            "directory_id": "vineet1",
-            "password_hash": hash_password("participant1"),
-            "email": "participant1@umd.edu",
-            "first_name": "Vineet",
-            "last_name": "Doe",
-            "role": "participant"
-        },
-         {
-            "directory_id": "vineet2",
-            "password_hash": hash_password("participant2"),
-            "email": "participant2@umd.edu",
-            "first_name": "Vineet",
+            "password_hash": hash_password("participant123"),
+            "email": "vineetagarwal540@gmail.com",
+            "first_name": "John",
             "last_name": "Doe",
             "role": "participant"
         },
@@ -80,7 +95,7 @@ async def seed_users():
     print("\n1. PARTICIPANT")
     print("   Directory ID: 118123456")
     print("   Password: participant123")
-    print("   Email: participant@umd.edu")
+    print("   Email: appsbekar@gmail.com")
     
     print("\n2. ORGANIZER")
     print("   Directory ID: 118234567")

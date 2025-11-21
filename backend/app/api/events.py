@@ -6,14 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime
 import secrets
+import logging
 
 from app.database import get_db
 from app.schemas.event import CreateEventRequest, UpdateEventRequest
 from app.models.event import Event, EventStatus
-from app.utils.security import get_current_user
+from app.utils.security import decode_access_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from app.api.auth import get_current_user   # 👈 ADD THIS
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
-
+security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 async def require_organizer_or_admin(user: dict = Depends(get_current_user)) -> dict:
     """
@@ -29,6 +34,14 @@ async def require_organizer_or_admin(user: dict = Depends(get_current_user)) -> 
         )
     return user
 
+async def require_admin(user: dict = Depends(get_current_user)):
+    """Allow only admins to perform this action."""
+    if user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can approve or reject events"
+        )
+    return user
 
 @router.post("/", response_model=Event, status_code=status.HTTP_201_CREATED)
 async def create_event(
@@ -111,16 +124,27 @@ async def get_all_events(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Get all events (public endpoint).
-    
-    Returns all events sorted by start time (newest first).
+    Return all events in the system.
+    Drops Mongo _id and safely converts to Event models.
+    Any malformed events are logged and skipped instead of causing 500.
     """
-    events = []
-    cursor = db.events.find({}).sort("start_time", -1)
-    
+    events: list[Event] = []
+
+    # Drop Mongo's internal _id field to avoid schema mismatch
+    cursor = db.events.find({}, {"_id": 0})
+
     async for event_doc in cursor:
-        events.append(Event(**event_doc))
-    
+        try:
+            events.append(Event(**event_doc))
+        except Exception as e:
+            # Log and skip bad docs instead of crashing
+            logger.error(
+                "Failed to parse event from DB (event_id=%s): %s",
+                event_doc.get("event_id"),
+                e,
+            )
+            continue
+
     return events
 
 
@@ -215,6 +239,75 @@ async def update_event(
     # Fetch and return updated event
     updated_event = await db.events.find_one({"event_id": event_id})
     return Event(**updated_event)
+
+@router.post("/{event_id}/approve", response_model=Event)
+async def approve_event(
+    event_id: str,
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin-only: mark an event as APPROVED so that participants can register.
+    """
+    # Fetch event
+    event_doc = await db.events.find_one({"event_id": event_id})
+    if not event_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Event with ID '{event_id}' not found"
+        )
+
+    event = Event(**event_doc)
+
+    # Optional guards if you want them
+    if event.status == EventStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled events cannot be approved"
+        )
+
+    # Set status to APPROVED
+    await db.events.update_one(
+        {"event_id": event_id},
+        {"$set": {"status": EventStatus.APPROVED, "updated_at": datetime.utcnow()}}
+    )
+
+    updated_doc = await db.events.find_one({"event_id": event_id})
+    return Event(**updated_doc)
+
+@router.post("/{event_id}/reject", response_model=Event)
+async def reject_event(
+    event_id: str,
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Admin-only: mark an event as REJECTED so that it never becomes visible for registration.
+    """
+    # Fetch event
+    event_doc = await db.events.find_one({"event_id": event_id})
+    if not event_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Event with ID '{event_id}' not found"
+        )
+
+    event = Event(**event_doc)
+
+    if event.status == EventStatus.CANCELLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled events cannot be rejected"
+        )
+
+    # Set status to REJECTED
+    await db.events.update_one(
+        {"event_id": event_id},
+        {"$set": {"status": EventStatus.REJECTED, "updated_at": datetime.utcnow()}}
+    )
+
+    updated_doc = await db.events.find_one({"event_id": event_id})
+    return Event(**updated_doc)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)

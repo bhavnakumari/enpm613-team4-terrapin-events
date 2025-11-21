@@ -52,6 +52,12 @@ Update `.env` with your secret key.
 
 ### 2. Run with Docker (Recommended)
 
+Create the .env file
+
+```bash
+cp .env.example .env
+```
+
 From project root:
 
 ```bash
@@ -61,6 +67,31 @@ docker compose -f infra/docker-compose.yml up --build
 API will be available at:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
+
+
+
+### How to test Email functionality(Development)
+1. Turn on 2-Step Verification
+Google requires this before generating an App Password.
+- Go to myaccount.google.com/security
+- Under “Signing in to Google”, enable 2-Step Verification
+- Complete setup (phone, OTP, etc.)
+
+2. Generate App Password
+Once 2FA is on:
+- Go to https://myaccount.google.com/apppasswords
+- Log in again if asked.
+- Under Select the app, choose Mail.
+- Under Select device, choose the device you’re using.
+- Click Generate.
+
+3. Go to your personal .env file and update the below
+- SMTP Server: smtp.gmail.com
+- Port: 587 (TLS) or 465 (SSL)
+- Username: your gmail address
+- Password: your 16-char app password
+
+
 
 ### 3. Run Locally (Development)
 
