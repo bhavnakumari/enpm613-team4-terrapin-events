@@ -20,7 +20,6 @@ from fastapi.security import HTTPAuthorizationCredentials  # optional, may be un
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
 
-
 @router.post("/{event_id}/register", response_model=Registration, status_code=status.HTTP_201_CREATED)
 async def register_for_event(
     event_id: str,
