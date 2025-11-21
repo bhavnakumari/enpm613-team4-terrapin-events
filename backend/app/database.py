@@ -6,7 +6,6 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-
 class DatabaseManager:
     client: Optional[AsyncIOMotorClient] = None
     db: Optional[AsyncIOMotorDatabase] = None

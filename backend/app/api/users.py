@@ -13,7 +13,6 @@ from app.utils.security import get_current_user
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
-
 class UpdateProfileRequest(BaseModel):
     """
     User profile update request.
