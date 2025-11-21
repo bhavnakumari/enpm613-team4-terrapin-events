@@ -6,8 +6,66 @@ import { Badge } from '../components/ui/badge';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
+import { useState, useEffect } from 'react';
+import { eventsService } from '../services/events.service';
+import { apiClient } from '../lib/api-client';
 
 export function ParticipantHomePage() {
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [myRegistrations, setMyRegistrations] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([
+    { name: 'Academic', count: 0, color: 'bg-blue-500', bgGradient: 'from-blue-500/10 to-blue-500/5', iconBg: 'bg-blue-500' },
+    { name: 'Social', count: 0, color: 'bg-purple-500', bgGradient: 'from-purple-500/10 to-purple-500/5', iconBg: 'bg-purple-500' },
+    { name: 'Sports', count: 0, color: 'bg-green-500', bgGradient: 'from-green-500/10 to-green-500/5', iconBg: 'bg-green-500' },
+    { name: 'Career', count: 0, color: 'bg-orange-500', bgGradient: 'from-orange-500/10 to-orange-500/5', iconBg: 'bg-orange-500' },
+    { name: 'Arts', count: 0, color: 'bg-pink-500', bgGradient: 'from-pink-500/10 to-pink-500/5', iconBg: 'bg-pink-500' },
+  ]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch upcoming events
+        const events = await eventsService.getUpcomingEvents();
+        setUpcomingEvents(events.slice(0, 4).map(e => ({
+          id: e.event_id,
+          title: e.title,
+          date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          location: e.location,
+          category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
+          attendees: 0,
+          image: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+        })));
+
+        // Fetch my registrations
+        const regs = await apiClient.get<any[]>('/api/events/registrations/my-registrations');
+        const regEvents = await Promise.all(regs.slice(0, 2).map(async (r) => {
+          const e = await eventsService.getEventById(r.event_id);
+          return {
+            id: r.event_id,
+            title: e.title,
+            date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            status: r.status === 'registered' ? 'Confirmed' : 'Waitlisted',
+          };
+        }));
+        setMyRegistrations(regEvents);
+
+        // Update category counts
+        const allEvents = await eventsService.getAllEvents();
+        const categoryCounts = allEvents.reduce((acc: any, e) => {
+          const cat = e.category?.charAt(0).toUpperCase() + e.category?.slice(1);
+          acc[cat] = (acc[cat] || 0) + 1;
+          return acc;
+        }, {});
+        setCategories(prev => prev.map(c => ({ ...c, count: categoryCounts[c.name] || 0 })));
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  /* MOCK DATA - COMMENTED OUT (Using Real API Now)
   const upcomingEvents = [
     {
       id: '1',
@@ -73,6 +131,7 @@ export function ParticipantHomePage() {
     { name: 'Career', count: 12, color: 'bg-orange-500', bgGradient: 'from-orange-500/10 to-orange-500/5', iconBg: 'bg-orange-500' },
     { name: 'Arts', count: 9, color: 'bg-pink-500', bgGradient: 'from-pink-500/10 to-pink-500/5', iconBg: 'bg-pink-500' },
   ];
+  */
 
   return (
     <div className="min-h-screen">

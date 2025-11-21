@@ -6,25 +6,28 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
-import { useAuth, UserRole } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
 import umdLogo from 'figma:asset/189578bb779c335a21221fb95ce560ad61750ffc.png';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [directoryId, setDirectoryId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [role, setRole] = useState<UserRole>('participant');
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoading, error } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    login(email, password, role);
-    navigate('/');
+    
+    try {
+      await login(directoryId, password);
+      navigate('/');
+    } catch (err) {
+      // Error is handled in AuthContext and displayed below
+      console.error('Login failed:', err);
+    }
   };
 
   return (
@@ -144,42 +147,26 @@ export function LoginPage() {
 
           <Card className="p-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Role Selection */}
-              <div className="space-y-3">
-                <Label className="text-gray-700 dark:text-gray-300">
-                  Login As
-                </Label>
-                <RadioGroup value={role || 'participant'} onValueChange={(value) => setRole(value as UserRole)}>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                    <RadioGroupItem value="participant" id="participant" />
-                    <Label htmlFor="participant" className="flex-1 cursor-pointer text-gray-700 dark:text-gray-300">
-                      <div>Participant</div>
-                      <p className="text-xs text-muted-foreground">Browse and register for events</p>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                    <RadioGroupItem value="admin" id="admin" />
-                    <Label htmlFor="admin" className="flex-1 cursor-pointer text-gray-700 dark:text-gray-300">
-                      <div>Administrator</div>
-                      <p className="text-xs text-muted-foreground">Manage events and approvals</p>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
+              {/* Error Message */}
+              {error && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                </div>
+              )}
 
-              {/* Email Field */}
+              {/* Directory ID Field */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">
-                  Email Address
+                <Label htmlFor="directoryId" className="text-gray-700 dark:text-gray-300">
+                  Directory ID
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="your.email@umd.edu"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="directoryId"
+                    type="text"
+                    placeholder="118123456"
+                    value={directoryId}
+                    onChange={(e) => setDirectoryId(e.target.value)}
                     className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     required
                   />
@@ -244,8 +231,9 @@ export function LoginPage() {
                 type="submit"
                 className="w-full bg-[#E21833] hover:bg-[#C11528] text-white dark:bg-[#C11528] dark:hover:bg-[#A01020]"
                 size="lg"
+                disabled={isLoading}
               >
-                Sign In
+                {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
 
               {/* Divider */}

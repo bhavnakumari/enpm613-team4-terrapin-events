@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Clock, Ticket, Mail, Phone, User, Edit, Settings, Download } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -8,6 +8,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Separator } from '../components/ui/separator';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../lib/api-client';
+import { eventsService } from '../services/events.service';
 
 interface RegisteredEvent {
   id: string;
@@ -22,6 +25,7 @@ interface RegisteredEvent {
   status: 'confirmed' | 'pending' | 'cancelled';
 }
 
+/* MOCK DATA - COMMENTED OUT (Using Real API Now)
 const mockRegistrations: RegisteredEvent[] = [
   {
     id: '1',
@@ -60,21 +64,41 @@ const mockRegistrations: RegisteredEvent[] = [
     status: 'confirmed',
   },
 ];
+*/
 
 export function UserProfilePage() {
   const [activeTab, setActiveTab] = useState('upcoming');
-  
-  const user = {
-    name: 'John Terp',
-    email: 'john@umd.edu',
-    phone: '(301) 555-0123',
-    role: 'Student',
-    major: 'Computer Science',
-    graduationYear: '2026',
-    avatar: '',
-  };
+  const { user } = useAuth();
+  const [registrations, setRegistrations] = useState<RegisteredEvent[]>([]);
 
-  const upcomingEvents = mockRegistrations.filter(e => e.status === 'confirmed');
+  useEffect(() => {
+    const fetchRegistrations = async () => {
+      try {
+        const regs = await apiClient.get<any[]>('/api/events/registrations/my-registrations');
+        const events = await Promise.all(regs.map(async (r) => {
+          const e = await eventsService.getEventById(r.event_id);
+          return {
+            id: r.event_id,
+            title: e.title,
+            date: new Date(e.start_time).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            location: e.location,
+            imageUrl: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400',
+            category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
+            ticketNumber: r.registration_id,
+            registeredAt: new Date(r.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            status: r.status === 'registered' ? 'confirmed' : 'pending',
+          };
+        }));
+        setRegistrations(events);
+      } catch (err) {
+        console.error('Failed to fetch registrations:', err);
+      }
+    };
+    fetchRegistrations();
+  }, []);
+
+  const upcomingEvents = registrations.filter(e => e.status === 'confirmed');
   const pastEvents: RegisteredEvent[] = [];
 
   return (
@@ -84,25 +108,27 @@ export function UserProfilePage() {
         <Card className="p-8 mb-8">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
             <Avatar className="w-24 h-24">
-              <AvatarImage src={user.avatar} />
+              <AvatarImage src="" />
               <AvatarFallback className="bg-[#E21833] text-white text-2xl">
-                {user.name.split(' ').map(n => n[0]).join('')}
+                {user?.first_name?.[0]}{user?.last_name?.[0]}
               </AvatarFallback>
             </Avatar>
 
             <div className="flex-1">
-              <h1 className="mb-2">{user.name}</h1>
-              <p className="text-muted-foreground mb-4">{user.role} • {user.major} • Class of {user.graduationYear}</p>
+              <h1 className="mb-2">{user?.first_name} {user?.last_name}</h1>
+              <p className="text-muted-foreground mb-4">{user?.role}{user?.major && ` • ${user.major}`}{user?.year && ` • Class of ${user.year}`}</p>
               
               <div className="flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span>{user.email}</span>
+                  <span>{user?.email}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span>{user.phone}</span>
-                </div>
+                {user?.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <span>{user.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -124,7 +150,7 @@ export function UserProfilePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Registrations</p>
-                <p className="text-foreground">{mockRegistrations.length}</p>
+                <p className="text-foreground">{registrations.length}</p>
               </div>
               <div className="w-12 h-12 bg-[#E21833]/10 dark:bg-[#C11528]/20 rounded-lg flex items-center justify-center">
                 <Ticket className="w-6 h-6 text-[#E21833]" />

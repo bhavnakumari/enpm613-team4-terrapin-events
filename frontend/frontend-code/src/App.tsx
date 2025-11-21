@@ -15,8 +15,16 @@ import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPa
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
 
 // Protected Route Component
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
-  const { isAuthenticated, isAdmin } = useAuth();
+function ProtectedRoute({ 
+  children, 
+  adminOnly = false, 
+  organizerOnly = false 
+}: { 
+  children: React.ReactNode; 
+  adminOnly?: boolean;
+  organizerOnly?: boolean;
+}) {
+  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -26,18 +34,22 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/" replace />;
   }
   
+  if (organizerOnly && !(isOrganizer || isAdmin)) {
+    return <Navigate to="/" replace />;
+  }
+  
   return <>{children}</>;
 }
 
 // Home Route Component - determines which home page to show
 function HomeRoute() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
   
   if (!isAuthenticated) {
     return <LandingPage />;
   }
   
-  if (isAdmin) {
+  if (isAdmin || isOrganizer) {
     return <AdminHomePage />;
   }
   
@@ -69,7 +81,7 @@ export default function App() {
                     </ProtectedRoute>
                   } />
                   <Route path="/create-event" element={
-                    <ProtectedRoute adminOnly>
+                    <ProtectedRoute organizerOnly>
                       <CreateEventWizard />
                     </ProtectedRoute>
                   } />
