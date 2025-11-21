@@ -20,7 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Load user from localStorage on mount
@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('access_token');
       }
     }
+    setIsLoading(false);
   }, []);
 
   const login = async (directoryId: string, password: string): Promise<void> => {

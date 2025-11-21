@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Filter, Home } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -76,6 +76,7 @@ const initialEvents: Event[] = [
 // ==========================================
 
 export function EventsCatalogPage() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export function EventsCatalogPage() {
   // Fetch events with registration data from optimized catalog endpoint
   useEffect(() => {
     const loadEventsFromServer = async () => {
+      const startTime = performance.now();
       try {
         setIsLoading(true);
         setError(null);
@@ -94,6 +96,9 @@ export function EventsCatalogPage() {
         const eventsInFrontendFormat = catalogEvents.map(convertBackendEventToFrontendFormat);
         
         setEvents(eventsInFrontendFormat);
+        
+        const endTime = performance.now();
+        console.log(`✅ Events loaded in ${(endTime - startTime).toFixed(0)}ms (${catalogEvents.length} events)`);
       } catch (err) {
         console.error('Failed to fetch events:', err);
         setError(err instanceof Error ? err.message : 'Failed to load events');
@@ -114,10 +119,9 @@ export function EventsCatalogPage() {
     });
   }, [events, searchQuery, selectedCategory]);
 
-  const registeredEvents = events.filter(e => e.isRegistered);
-  console.log('Registered Events:', registeredEvents);
+  const registeredEvents = useMemo(() => events.filter(e => e.isRegistered), [events]);
 
-  const handleToggleRSVP = async (eventId: string) => {
+  const handleToggleRSVP = useCallback(async (eventId: string) => {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
 
@@ -166,12 +170,12 @@ export function EventsCatalogPage() {
         duration: 4000,
       });
     }
-  };
+  }, [events]);
 
-  const handleViewDetails = (event: Event) => {
+  const handleViewDetails = useCallback((event: Event) => {
     // Navigate to event details page
-    window.location.href = `/events/${event.id}`;
-  };
+    navigate(`/events/${event.id}`);
+  }, [navigate]);
 
   return (
     <div>
@@ -295,7 +299,7 @@ export function EventsCatalogPage() {
               <h3 className="mb-2 text-red-600">Failed to load events</h3>
               <p className="text-muted-foreground mb-4">{error}</p>
               <Button 
-                onClick={() => window.location.reload()} 
+                onClick={() => navigate(0)} 
                 className="bg-[#E21833] hover:bg-[#C11528]"
               >
                 Retry

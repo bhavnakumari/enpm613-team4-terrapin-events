@@ -24,7 +24,17 @@ function ProtectedRoute({
   adminOnly?: boolean;
   organizerOnly?: boolean;
 }) {
-  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
+  const { isAuthenticated, isAdmin, isOrganizer, isLoading } = useAuth();
+  
+  // Wait for auth check to complete
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E21833] mx-auto"></div>
+        <p className="mt-4 text-muted-foreground">Loading...</p>
+      </div>
+    </div>;
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

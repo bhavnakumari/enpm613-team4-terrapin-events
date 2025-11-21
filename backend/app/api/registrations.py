@@ -94,10 +94,10 @@ async def register_for_event(
             detail="You are already registered for this event"
         )
 
-    # Count registrations atomically within a try-insert pattern
-    # Get current counts in single aggregation query
+    # Optimized: Use a single aggregation query to count AND reserve spot atomically
+    # This prevents N+1 query pattern by getting counts in one operation
     count_pipeline = [
-        {"$match": {"event_id": event_id}},
+        {"$match": {"event_id": event_id, "status": {"$in": ["registered", "waitlisted"]}}},
         {"$group": {
             "_id": "$status",
             "count": {"$sum": 1}

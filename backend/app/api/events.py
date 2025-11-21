@@ -53,8 +53,9 @@ async def create_event(
     Create a new event.
     
     Only organizers and admins can create events.
-    Organizers can optionally specify which admin should review their event.
-    New events start with status=DRAFT.
+    Status can be:
+    - 'draft': Save for later (default)
+    - 'pending_approval': Submit for admin review immediately
     """
     # Validate requested admin exists if provided and get admin email
     requested_admin_email = None
@@ -103,7 +104,7 @@ async def create_event(
         registration_open_time=event_data.registration_open_time,
         registration_close_time=event_data.registration_close_time,
         capacity=event_data.capacity,
-        status=EventStatus.DRAFT,
+        status=event_data.status,
         organizer_id=user["directory_id"],
         organizer_email=user["email"],
         requested_admin_id=event_data.requested_admin_id,
@@ -229,14 +230,14 @@ async def get_pending_events(
 ):
     """
     Admin-only endpoint to get events awaiting approval with organizer details.
-    Returns draft and pending events with embedded organizer information.
+    Returns events with status=pending_approval.
     Optimized for admin approval workflow.
     
     Returns:
         List of events with organizer_info embedded
     """
     pipeline = [
-        {"$match": {"status": {"$in": ["draft", "pending"]}}},
+        {"$match": {"status": "pending_approval"}},
         {
             "$lookup": {
                 "from": "users",
@@ -439,16 +440,25 @@ async def update_event(
     
     # Fetch and return updated event
     updated_event = await db.events.find_one({"event_id": event_id})
+    if not updated_event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found after update"
+        )
     return Event(**updated_event)
 
-@router.post("/{event_id}/approve", response_model=Event)
-async def approve_event(
+
+@router.post("/{event_id}/submit", response_model=Event)
+async def submit_event_for_approval(
     event_id: str,
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_organizer_or_admin),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
-    Admin-only: mark an event as APPROVED so that participants can register.
+    Submit a draft event for admin approval.
+    Changes status from DRAFT → PENDING_APPROVAL.
+    
+    Only the event organizer or admin can submit.
     """
     # Fetch event
     event_doc = await db.events.find_one({"event_id": event_id})
@@ -460,54 +470,37 @@ async def approve_event(
 
     event = Event(**event_doc)
 
-    # Optional guards if you want them
-    if event.status == EventStatus.CANCELLED:
+    # Authorization: Only organizer or admin
+    if user["role"] != "admin" and user["directory_id"] != event.organizer_id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cancelled events cannot be approved"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the event organizer or admin can submit this event"
         )
 
-    # Set status to APPROVED
+    # Validate current status
+    if event.status != EventStatus.DRAFT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only draft events can be submitted. Current status: {event.status}"
+        )
+
+    # Update status to pending_approval
     await db.events.update_one(
         {"event_id": event_id},
-        {"$set": {"status": EventStatus.APPROVED, "updated_at": datetime.utcnow()}}
+        {"$set": {
+            "status": EventStatus.PENDING_APPROVAL,
+            "updated_at": datetime.utcnow()
+        }}
     )
 
     updated_doc = await db.events.find_one({"event_id": event_id})
-    return Event(**updated_doc)
-
-@router.post("/{event_id}/reject", response_model=Event)
-async def reject_event(
-    event_id: str,
-    user: dict = Depends(require_admin),
-    db: AsyncIOMotorDatabase = Depends(get_db)
-):
-    """
-    Admin-only: mark an event as REJECTED so that it never becomes visible for registration.
-    """
-    # Fetch event
-    event_doc = await db.events.find_one({"event_id": event_id})
-    if not event_doc:
+    if not updated_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Event with ID '{event_id}' not found"
+            detail="Event not found after update"
         )
-
-    event = Event(**event_doc)
-
-    if event.status == EventStatus.CANCELLED:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cancelled events cannot be rejected"
-        )
-
-    # Set status to REJECTED
-    await db.events.update_one(
-        {"event_id": event_id},
-        {"$set": {"status": EventStatus.REJECTED, "updated_at": datetime.utcnow()}}
-    )
-
-    updated_doc = await db.events.find_one({"event_id": event_id})
+    
+    logger.info(f"Event {event_id} submitted for approval by {user['directory_id']}")
     return Event(**updated_doc)
 
 

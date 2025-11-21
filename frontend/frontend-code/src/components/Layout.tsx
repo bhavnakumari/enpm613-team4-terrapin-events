@@ -117,12 +117,12 @@ export function Layout({ children }: LayoutProps) {
                   <div className="text-xs text-muted-foreground">{user?.email || 'john@umd.edu'}</div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => window.location.href = '/profile'}>
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
                   <User className="w-4 h-4 mr-2" />
                   Profile & Registrations
                 </DropdownMenuItem>
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => window.location.href = '/analytics'}>
+                  <DropdownMenuItem onClick={() => navigate('/analytics')}>
                     <BarChart3 className="w-4 h-4 mr-2" />
                     My Analytics
                   </DropdownMenuItem>

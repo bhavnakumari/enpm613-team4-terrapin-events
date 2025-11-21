@@ -73,6 +73,7 @@ export function UserProfilePage() {
 
   useEffect(() => {
     const fetchRegistrations = async () => {
+      const startTime = performance.now();
       try {
         const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
         const events = regsWithEvents.map(r => {
@@ -91,12 +92,18 @@ export function UserProfilePage() {
           };
         });
         setRegistrations(events);
+        const endTime = performance.now();
+        console.log(`✅ Profile registrations loaded in ${(endTime - startTime).toFixed(0)}ms`);
       } catch (err) {
         console.error('Failed to fetch registrations:', err);
       }
     };
-    fetchRegistrations();
-  }, []);
+    
+    // Only fetch if user is authenticated (from AuthContext)
+    if (user) {
+      fetchRegistrations();
+    }
+  }, [user]);
 
   const upcomingEvents = registrations.filter(e => e.status === 'confirmed');
   const pastEvents: RegisteredEvent[] = [];

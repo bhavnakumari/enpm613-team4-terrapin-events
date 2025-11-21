@@ -1,3 +1,4 @@
+import React from 'react';
 import { Calendar, MapPin, Users, Clock } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -19,12 +20,11 @@ const categoryColors = {
   Career: 'bg-red-50 text-[#E21833] border-red-200',
 };
 
-export function EventCard({ event, onViewDetails, onToggleRSVP }: EventCardProps) {
+export const EventCard = React.memo(function EventCard({ event, onViewDetails, onToggleRSVP }: EventCardProps) {
   const spotsLeft = event.maxAttendees - event.attendees;
   const isAlmostFull = spotsLeft <= 10 && spotsLeft > 0;
   const isFull = spotsLeft <= 0;
   
-console.log('Rendering EventCard for event:', event);
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative h-48 overflow-hidden">
@@ -88,4 +88,4 @@ console.log('Rendering EventCard for event:', event);
       </div>
     </Card>
   );
-}
+});

@@ -22,9 +22,19 @@ export function ParticipantHomePage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      const startTime = performance.now();
       try {
-        // Fetch upcoming events from catalog (optimized endpoint with attendee counts)
-        const catalogEvents = await apiClient.get<any[]>('/api/events/catalog');
+        // Parallel API calls for better performance
+        const [catalogEvents, regsWithEvents, categoryStats] = await Promise.all([
+          apiClient.get<any[]>('/api/events/catalog'),
+          apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events'),
+          apiClient.get<Array<{category: string, count: number}>>('/api/events/categories/stats')
+        ]);
+
+        const endTime = performance.now();
+        console.log(`✅ Home data loaded in ${(endTime - startTime).toFixed(0)}ms (parallel)`);
+
+        // Process upcoming events
         const now = new Date();
         const upcoming = catalogEvents
           .filter(e => new Date(e.start_time) > now)
@@ -42,8 +52,7 @@ export function ParticipantHomePage() {
           }));
         setUpcomingEvents(upcoming);
 
-        // Fetch my registrations with event details (optimized single query)
-        const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
+        // Process registrations
         const regEvents = regsWithEvents.slice(0, 2).map(r => ({
           id: r.event_id,
           title: r.event_details.title,
@@ -52,8 +61,7 @@ export function ParticipantHomePage() {
         }));
         setMyRegistrations(regEvents);
 
-        // Fetch category counts using optimized endpoint
-        const categoryStats = await apiClient.get<Array<{category: string, count: number}>>('/api/events/categories/stats');
+        // Process category stats
         const categoryCounts = categoryStats.reduce((acc: any, stat) => {
           const cat = stat.category?.charAt(0).toUpperCase() + stat.category?.slice(1);
           acc[cat] = stat.count;

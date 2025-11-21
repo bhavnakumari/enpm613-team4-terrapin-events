@@ -19,6 +19,7 @@ class CreateEventRequest(BaseModel):
     registration_close_time: Optional[datetime] = None
     capacity: int = Field(..., gt=0)
     requested_admin_id: Optional[str] = Field(None, description="Directory ID of admin from whom approval is requested")
+    status: EventStatus = Field(EventStatus.DRAFT, description="Event status: draft or pending_approval")
 
     class Config:
         json_schema_extra = {
