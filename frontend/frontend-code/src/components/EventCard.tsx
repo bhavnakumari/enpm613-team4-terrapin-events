@@ -1,5 +1,5 @@
-import React from 'react';
 import { Calendar, MapPin, Users, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -7,7 +7,6 @@ import { Event } from '../types';
 
 interface EventCardProps {
   event: Event;
-  onViewDetails: (event: Event) => void;
   onToggleRSVP: (eventId: string) => void;
 }
 
@@ -20,11 +19,13 @@ const categoryColors = {
   Career: 'bg-red-50 text-[#E21833] border-red-200',
 };
 
-export const EventCard = React.memo(function EventCard({ event, onViewDetails, onToggleRSVP }: EventCardProps) {
+export function EventCard({ event, onToggleRSVP }: EventCardProps) {
   const spotsLeft = event.maxAttendees - event.attendees;
   const isAlmostFull = spotsLeft <= 10 && spotsLeft > 0;
   const isFull = spotsLeft <= 0;
-  
+
+  const navigate = useNavigate();
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative h-48 overflow-hidden">
@@ -73,7 +74,7 @@ export const EventCard = React.memo(function EventCard({ event, onViewDetails, o
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => onViewDetails(event)}
+            onClick={() => navigate(`/events/${event.id}`)}
           >
             View Details
           </Button>
@@ -81,11 +82,12 @@ export const EventCard = React.memo(function EventCard({ event, onViewDetails, o
             className="flex-1 bg-[#E21833] hover:bg-[#C11528]"
             variant={event.isRegistered ? "secondary" : "default"}
             onClick={() => onToggleRSVP(event.id)}
+            disabled={isFull && !event.isRegistered}
           >
-            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Join Waitlist' : 'RSVP'}
+            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Full' : 'RSVP'}
           </Button>
         </div>
       </div>
     </Card>
   );
-});
+}
