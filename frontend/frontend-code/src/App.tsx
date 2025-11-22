@@ -5,8 +5,10 @@ import { Layout } from './components/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { ParticipantHomePage } from './pages/ParticipantHomePage';
 import { AdminHomePage } from './pages/AdminHomePage';
+import { OrganiserHomePage } from './pages/OrganiserHomePage';
 import { LoginPage } from './pages/LoginPage';
 import { EventsCatalogPage } from './pages/EventsCatalogPage';
+import { EventDetailsPage } from './pages/EventDetailsPage';
 import { CreateEventWizard } from './pages/CreateEventWizard';
 import { AdminApprovalPage } from './pages/AdminApprovalPage';
 import { UserProfilePage } from './pages/UserProfilePage';
@@ -15,8 +17,8 @@ import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPa
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
 
 // Protected Route Component
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
-  const { isAuthenticated, isAdmin } = useAuth();
+function ProtectedRoute({ children, adminOnly = false, organizerOrAdmin = false }: { children: React.ReactNode; adminOnly?: boolean; organizerOrAdmin?: boolean }) {
+  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -26,12 +28,16 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/" replace />;
   }
   
+  if (organizerOrAdmin && !isAdmin && !isOrganizer) {
+    return <Navigate to="/" replace />;
+  }
+  
   return <>{children}</>;
 }
 
 // Home Route Component - determines which home page to show
 function HomeRoute() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
   
   if (!isAuthenticated) {
     return <LandingPage />;
@@ -39,6 +45,10 @@ function HomeRoute() {
   
   if (isAdmin) {
     return <AdminHomePage />;
+  }
+  
+  if (isOrganizer) {
+    return <OrganiserHomePage />;
   }
   
   return <ParticipantHomePage />;
@@ -65,11 +75,11 @@ export default function App() {
                   } />
                   <Route path="/events/:id" element={
                     <ProtectedRoute>
-                      <EventsCatalogPage />
+                      <EventDetailsPage />
                     </ProtectedRoute>
                   } />
                   <Route path="/create-event" element={
-                    <ProtectedRoute adminOnly>
+                    <ProtectedRoute organizerOrAdmin>
                       <CreateEventWizard />
                     </ProtectedRoute>
                   } />
@@ -94,7 +104,7 @@ export default function App() {
                     </ProtectedRoute>
                   } />
                   <Route path="/analytics" element={
-                    <ProtectedRoute adminOnly>
+                    <ProtectedRoute organizerOrAdmin>
                       <AnalyticsDashboard />
                     </ProtectedRoute>
                   } />

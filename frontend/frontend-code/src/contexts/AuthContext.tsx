@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
-export type UserRole = 'participant' | 'admin' | null;
+export type UserRole = 'participant' | 'admin' | 'organizer' | null;
 
 interface User {
   id: string;
@@ -16,6 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isParticipant: boolean;
+  isOrganizer: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,11 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (email: string, password: string, role: UserRole) => {
     // Mock login - in a real app, this would call an API
+    const roleNames = {
+      admin: 'Admin User',
+      participant: 'John Terp',
+      organizer: 'Event Organizer'
+    };
+    
     const newUser: User = {
       id: '1',
-      name: role === 'admin' ? 'Admin User' : 'John Terp',
+      name: roleNames[role as 'admin' | 'participant' | 'organizer'] || 'User',
       email: email,
-      role: role as 'participant' | 'admin',
+      role: role as 'participant' | 'admin' | 'organizer',
     };
     
     setUser(newUser);
@@ -56,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
     isParticipant: user?.role === 'participant',
+    isOrganizer: user?.role === 'organizer',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
