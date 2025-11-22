@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { motion } from 'motion/react';
 import { 
   Calendar, 
   Plus, 
@@ -222,27 +221,6 @@ export function OrganiserHomePage() {
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.5
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section with Image */}
@@ -259,20 +237,11 @@ export function OrganiserHomePage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center py-8">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <motion.div
-                className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full mb-6"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
+            <div>
+              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
                 <Sparkles className="w-4 h-4" />
                 <span className="text-sm">Organizer Dashboard</span>
-              </motion.div>
+              </div>
               
               <h1 className="mb-4 text-white">
                 Bring Your Events to Life
@@ -283,37 +252,22 @@ export function OrganiserHomePage() {
               
               <div className="flex flex-wrap gap-4">
                 <Link to="/create-event">
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
-                      <Plus className="w-5 h-5 mr-2" />
-                      Create New Event
-                    </Button>
-                  </motion.div>
+                  <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create New Event
+                  </Button>
                 </Link>
                 <Link to="/analytics">
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Button size="lg" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
-                      <BarChart3 className="w-5 h-5 mr-2" />
-                      View Analytics
-                    </Button>
-                  </motion.div>
+                  <Button size="lg" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+                    <BarChart3 className="w-5 h-5 mr-2" />
+                    View Analytics
+                  </Button>
                 </Link>
               </div>
-            </motion.div>
+            </div>
 
             {/* Hero Image */}
-            <motion.div
-              className="relative hidden lg:block"
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
+            <div className="relative hidden lg:block">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <img
                   src={umdStudentsImage}
@@ -322,7 +276,7 @@ export function OrganiserHomePage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -330,151 +284,115 @@ export function OrganiserHomePage() {
       {/* Stats Grid */}
       <section className="py-12 bg-background -mt-8 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            {stats.map((stat, index) => (
-              <motion.div key={stat.title} variants={itemVariants}>
-                <Card className="p-6 hover:shadow-lg transition-shadow border-2">
-                  <div className={`w-14 h-14 bg-gradient-to-br ${stat.gradient} rounded-xl flex items-center justify-center mb-4 shadow-lg`}>
-                    <stat.icon className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="text-muted-foreground mb-1 text-sm">{stat.title}</div>
-                  <div className="mb-1 bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">{stat.value}</div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    {stat.change}
-                  </div>
-                </Card>
-              </motion.div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {stats.map((stat) => (
+              <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow border-2">
+                <div className={`w-14 h-14 bg-gradient-to-br ${stat.gradient} rounded-xl flex items-center justify-center mb-4 shadow-lg`}>
+                  <stat.icon className="w-7 h-7 text-white" />
+                </div>
+                <div className="text-muted-foreground mb-1 text-sm">{stat.title}</div>
+                <div className="mb-1 bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">{stat.value}</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" />
+                  {stat.change}
+                </div>
+              </Card>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Quick Actions with Images */}
       <section className="py-12 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-8"
-          >
+          <div className="mb-8">
             <h2 className="text-[#E21833] mb-2">Quick Actions</h2>
             <p className="text-muted-foreground">Everything you need to manage your events</p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Create Event Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ y: -8 }}
-            >
-              <Link to="/create-event">
-                <Card className="overflow-hidden cursor-pointer group hover:shadow-xl transition-all">
-                  <div className="relative h-48 overflow-hidden">
-                    <ImageWithFallback
-                      src="https://images.unsplash.com/photo-1760022638435-aad7c1e684b6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxldmVudCUyMHBsYW5uaW5nJTIwd29ya3NwYWNlfGVufDF8fHx8MTc2MzcwMTc0OHww&ixlib=rb-4.1.0&q=80&w=1080"
-                      alt="Create Event"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                    <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <Plus className="w-6 h-6 text-white" />
-                    </div>
+            <Link to="/create-event">
+              <Card className="overflow-hidden cursor-pointer group hover:shadow-xl transition-all">
+                <div className="relative h-48 overflow-hidden">
+                  <ImageWithFallback
+                    src="https://images.unsplash.com/photo-1760022638435-aad7c1e684b6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxldmVudCUyMHBsYW5uaW5nJTIwd29ya3NwYWNlfGVufDF8fHx8MTc2MzcwMTc0OHww&ixlib=rb-4.1.0&q=80&w=1080"
+                    alt="Create Event"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                  <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <Plus className="w-6 h-6 text-white" />
                   </div>
-                  <div className="p-6">
-                    <h3 className="mb-2 flex items-center justify-between">
-                      Create New Event
-                      <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Start planning your next amazing event with our easy-to-use wizard
-                    </p>
-                  </div>
-                </Card>
-              </Link>
-            </motion.div>
+                </div>
+                <div className="p-6">
+                  <h3 className="mb-2 flex items-center justify-between">
+                    Create New Event
+                    <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Start planning your next amazing event with our easy-to-use wizard
+                  </p>
+                </div>
+              </Card>
+            </Link>
 
             {/* Analytics Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              whileHover={{ y: -8 }}
-            >
-              <Link to="/analytics">
-                <Card className="overflow-hidden cursor-pointer group hover:shadow-xl transition-all">
-                  <div className="relative h-48 overflow-hidden">
-                    <ImageWithFallback
-                      src="https://images.unsplash.com/photo-1759752394755-1241472b589d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmFseXRpY3MlMjBkYXNoYm9hcmQlMjBzY3JlZW58ZW58MXx8fHwxNzYzNzA2MzI2fDA&ixlib=rb-4.1.0&q=80&w=1080"
-                      alt="Analytics"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                    <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <BarChart3 className="w-6 h-6 text-white" />
-                    </div>
+            <Link to="/analytics">
+              <Card className="overflow-hidden cursor-pointer group hover:shadow-xl transition-all">
+                <div className="relative h-48 overflow-hidden">
+                  <ImageWithFallback
+                    src="https://images.unsplash.com/photo-1759752394755-1241472b589d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmFseXRpY3MlMjBkYXNoYm9hcmQlMjBzY3JlZW58ZW58MXx8fHwxNzYzNzA2MzI2fDA&ixlib=rb-4.1.0&q=80&w=1080"
+                    alt="Analytics"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                  <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-white" />
                   </div>
-                  <div className="p-6">
-                    <h3 className="mb-2 flex items-center justify-between">
-                      View Analytics
-                      <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Track performance metrics and gain insights into your events
-                    </p>
-                  </div>
-                </Card>
-              </Link>
-            </motion.div>
+                </div>
+                <div className="p-6">
+                  <h3 className="mb-2 flex items-center justify-between">
+                    View Analytics
+                    <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Track performance metrics and gain insights into your events
+                  </p>
+                </div>
+              </Card>
+            </Link>
 
             {/* Drafts Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              whileHover={{ y: -8 }}
-            >
-              <div onClick={() => setActiveTab('drafts')} className="cursor-pointer">
-                <Card className="overflow-hidden group hover:shadow-xl transition-all">
-                  <div className="relative h-48 overflow-hidden">
-                    <ImageWithFallback
-                      src="https://images.unsplash.com/photo-1761300725208-e8f92da35f5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjZWxlYnJhdGlvbiUyMGV2ZW50JTIwcGFydHl8ZW58MXx8fHwxNzYzNzU4ODE3fDA&ixlib=rb-4.1.0&q=80&w=1080"
-                      alt="Draft Events"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                    <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                      <Edit className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="absolute bottom-4 left-4">
-                      <Badge className="bg-orange-500">
-                        {draftEvents.length} Drafts
-                      </Badge>
-                    </div>
+            <div onClick={() => setActiveTab('drafts')} className="cursor-pointer">
+              <Card className="overflow-hidden group hover:shadow-xl transition-all">
+                <div className="relative h-48 overflow-hidden">
+                  <ImageWithFallback
+                    src="https://images.unsplash.com/photo-1761300725208-e8f92da35f5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjZWxlYnJhdGlvbiUyMGV2ZW50JTIwcGFydHl8ZW58MXx8fHwxNzYzNzU4ODE3fDA&ixlib=rb-4.1.0&q=80&w=1080"
+                    alt="Draft Events"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                  <div className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <Edit className="w-6 h-6 text-white" />
                   </div>
-                  <div className="p-6">
-                    <h3 className="mb-2 flex items-center justify-between">
-                      Continue Editing
-                      <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Pick up where you left off with your saved drafts
-                    </p>
+                  <div className="absolute bottom-4 left-4">
+                    <Badge className="bg-orange-500">
+                      {draftEvents.length} Drafts
+                    </Badge>
                   </div>
-                </Card>
-              </div>
-            </motion.div>
+                </div>
+                <div className="p-6">
+                  <h3 className="mb-2 flex items-center justify-between">
+                    Continue Editing
+                    <ArrowRight className="w-5 h-5 text-[#E21833] group-hover:translate-x-1 transition-transform" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Pick up where you left off with your saved drafts
+                  </p>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
       </section>
@@ -484,290 +402,209 @@ export function OrganiserHomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Custom Tab Navigation */}
           <div className="flex items-center justify-center gap-4 mb-8">
-            <motion.button
+            <button
               onClick={() => setActiveTab('drafts')}
               className={`px-8 py-3 rounded-lg transition-all ${
                 activeTab === 'drafts'
                   ? 'bg-[#E21833] text-white shadow-lg'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
                 <span>Draft Events ({draftEvents.length})</span>
               </div>
-            </motion.button>
+            </button>
             
-            <motion.button
+            <button
               onClick={() => setActiveTab('published')}
               className={`px-8 py-3 rounded-lg transition-all ${
                 activeTab === 'published'
                   ? 'bg-[#E21833] text-white shadow-lg'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 <span>Your Events ({publishedEvents.length})</span>
               </div>
-            </motion.button>
+            </button>
           </div>
 
           {/* Draft Events */}
           {activeTab === 'drafts' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <Card className="p-8">
-                <div className="mb-8">
-                  <h2 className="text-[#E21833] mb-2">Draft Events</h2>
-                  <p className="text-muted-foreground">
-                    Continue editing your saved events and publish when ready
-                  </p>
-                </div>
+            <Card className="p-8">
+              <div className="mb-8">
+                <h2 className="text-[#E21833] mb-2">Draft Events</h2>
+                <p className="text-muted-foreground">
+                  Continue editing your saved events and publish when ready
+                </p>
+              </div>
 
-                {draftEvents.length === 0 ? (
-                  <div className="text-center py-16 border-2 border-dashed rounded-xl">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring" }}
+              {draftEvents.length === 0 ? (
+                <div className="text-center py-16 border-2 border-dashed rounded-xl">
+                  <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="mb-2">No Draft Events</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Start creating your first event
+                  </p>
+                  <Link to="/create-event">
+                    <Button size="lg" className="bg-[#E21833] hover:bg-[#C11528]">
+                      <Plus className="w-5 h-5 mr-2" />
+                      Create Event
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {draftEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="p-6 border-2 rounded-xl hover:border-[#E21833]/30 hover:shadow-lg transition-all bg-gradient-to-r from-background to-muted/20"
                     >
-                      <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                    </motion.div>
-                    <h3 className="mb-2">No Draft Events</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Start creating your first event
-                    </p>
-                    <Link to="/create-event">
-                      <Button size="lg" className="bg-[#E21833] hover:bg-[#C11528]">
-                        <Plus className="w-5 h-5 mr-2" />
-                        Create Event
-                      </Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {draftEvents.map((event, index) => (
-                      <motion.div
-                        key={event.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        whileHover={{ scale: 1.01 }}
-                        className="p-6 border-2 rounded-xl hover:border-[#E21833]/30 hover:shadow-lg transition-all bg-gradient-to-r from-background to-muted/20"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3>{event.title}</h3>
-                              <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-0">
-                                {event.category}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-3">
-                              {event.description}
-                            </p>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
-                                {event.lastEdited}
-                              </span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <Users className="w-4 h-4" />
-                                Est. {event.estimatedAttendees} attendees
-                              </span>
-                              <span>•</span>
-                              <span className={`flex items-center gap-1 ${
-                                event.completeness >= 80 ? 'text-green-600 dark:text-green-400' :
-                                event.completeness >= 50 ? 'text-orange-600 dark:text-orange-400' :
-                                'text-red-600 dark:text-red-400'
-                              }`}>
-                                <Target className="w-4 h-4" />
-                                {event.completeness}% complete
-                              </span>
-                            </div>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3>{event.title}</h3>
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-0">
+                              {event.category}
+                            </Badge>
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            <Link to={`/create-event?draft=${event.id}`}>
-                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                <Button size="sm" variant="outline">
-                                  <Edit className="w-4 h-4 mr-1" />
-                                  Edit
-                                </Button>
-                              </motion.div>
-                            </Link>
-                            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                              <Button size="sm" className="bg-[#E21833] hover:bg-[#C11528]">
-                                <Zap className="w-4 h-4 mr-1" />
-                                Publish
-                              </Button>
-                            </motion.div>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {event.description}
+                          </p>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              {event.lastEdited}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              Est. {event.estimatedAttendees} attendees
+                            </span>
+                            <span>•</span>
+                            <span className={`flex items-center gap-1 ${
+                              event.completeness >= 80 ? 'text-green-600 dark:text-green-400' :
+                              event.completeness >= 50 ? 'text-orange-600 dark:text-orange-400' :
+                              'text-red-600 dark:text-red-400'
+                            }`}>
+                              <Target className="w-4 h-4" />
+                              {event.completeness}% complete
+                            </span>
                           </div>
                         </div>
-                        
-                        {/* Animated Progress Bar */}
-                        <div className="mt-4">
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                            <motion.div
-                              className="bg-gradient-to-r from-[#E21833] to-[#C11528] h-2.5 rounded-full"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${event.completeness}%` }}
-                              transition={{ duration: 1, delay: index * 0.1 }}
-                            />
-                          </div>
+                        <div className="flex gap-2 ml-4">
+                          <Link to={`/create-event?draft=${event.id}`}>
+                            <Button size="sm" variant="outline">
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
+                          </Link>
+                          <Button size="sm" className="bg-[#E21833] hover:bg-[#C11528]">
+                            <Zap className="w-4 h-4 mr-1" />
+                            Publish
+                          </Button>
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </motion.div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      <div className="mt-4">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-[#E21833] to-[#C11528] h-2.5 rounded-full"
+                            style={{ width: `${event.completeness}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           )}
 
           {/* Published Events */}
           {activeTab === 'published' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <Card className="p-8">
-                <div className="mb-8">
-                  <h2 className="text-[#E21833] mb-2">Your Events</h2>
-                  <p className="text-muted-foreground">
-                    Track the status and performance of your published events
+            <Card className="p-8">
+              <div className="mb-8">
+                <h2 className="text-[#E21833] mb-2">Your Events</h2>
+                <p className="text-muted-foreground">
+                  Track the status and performance of your published events
+                </p>
+              </div>
+
+              {publishedEvents.length === 0 ? (
+                <div className="text-center py-16 border-2 border-dashed rounded-xl">
+                  <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="mb-2">No Published Events</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Publish your draft events to see them here
                   </p>
                 </div>
-
-                {publishedEvents.length === 0 ? (
-                  <div className="text-center py-16 border-2 border-dashed rounded-xl">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring" }}
+              ) : (
+                <div className="space-y-4">
+                  {publishedEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="p-6 border-2 rounded-xl hover:border-[#E21833]/30 hover:shadow-lg transition-all bg-gradient-to-r from-background to-muted/20"
                     >
-                      <Calendar className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                    </motion.div>
-                    <h3 className="mb-2">No Published Events</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Publish your draft events to see them here
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {publishedEvents.map((event, index) => (
-                      <motion.div
-                        key={event.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        whileHover={{ scale: 1.01 }}
-                        className="p-6 border-2 rounded-xl hover:border-[#E21833]/30 hover:shadow-lg transition-all bg-gradient-to-r from-background to-muted/20"
-                      >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3>{event.title}</h3>
-                              <Badge variant="outline" className="bg-purple-500/10 text-purple-700 dark:text-purple-400 border-0">
-                                {event.category}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                              <span>Submitted {event.submittedDate}</span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <Eye className="w-4 h-4" />
-                                {event.views} views
-                              </span>
-                              {event.status === 'approved' && (
-                                <>
-                                  <span>•</span>
-                                  <span className="flex items-center gap-1">
-                                    <Users className="w-4 h-4" />
-                                    {event.attendees} registered
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                            <div>{getStatusBadge(event.status)}</div>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3>{event.title}</h3>
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-0">
+                              {event.category}
+                            </Badge>
+                            {getStatusBadge(event.status)}
                           </div>
-                          <div className="flex gap-2 ml-4">
-                            {event.status === 'approved' && (
-                              <>
-                                <Link to={`/analytics?event=${event.id}`}>
-                                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button size="sm" variant="outline">
-                                      <BarChart3 className="w-4 h-4 mr-1" />
-                                      Analytics
-                                    </Button>
-                                  </motion.div>
-                                </Link>
-                                <Link to={`/create-event?edit=${event.id}`}>
-                                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button size="sm" variant="outline">
-                                      <Edit className="w-4 h-4 mr-1" />
-                                      Edit
-                                    </Button>
-                                  </motion.div>
-                                </Link>
-                              </>
-                            )}
-                            {event.status === 'rejected' && (
-                              <Link to={`/create-event?resubmit=${event.id}`}>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                  <Button size="sm" className="bg-[#E21833] hover:bg-[#C11528]">
-                                    <Zap className="w-4 h-4 mr-1" />
-                                    Resubmit
-                                  </Button>
-                                </motion.div>
-                              </Link>
-                            )}
-                            {event.status === 'waiting' && (
-                              <motion.div
-                                animate={{ scale: [1, 1.05, 1] }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                              >
-                                <Button size="sm" variant="outline" disabled>
-                                  <Clock className="w-4 h-4 mr-1" />
-                                  Pending Review
-                                </Button>
-                              </motion.div>
-                            )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              Submitted {event.submittedDate}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              {event.attendees} registered
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Eye className="w-4 h-4" />
+                              {event.views} views
+                            </span>
                           </div>
+                          {event.status === 'rejected' && event.rejectionReason && (
+                            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+                              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                              <div className="text-sm text-red-700 dark:text-red-300">
+                                <strong>Rejection Reason:</strong> {event.rejectionReason}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        
-                        {/* Rejection Reason with Animation */}
-                        {event.status === 'rejected' && event.rejectionReason && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className="mt-4 p-4 bg-red-500/10 border-l-4 border-red-500 rounded-lg flex items-start gap-3"
-                          >
-                            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <div className="text-sm text-red-600 dark:text-red-400 mb-1">
-                                Rejection Reason:
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {event.rejectionReason}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            </motion.div>
+                        <div className="flex gap-2 ml-4">
+                          <Link to={`/events/${event.id}`}>
+                            <Button size="sm" variant="outline">
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                          {event.status === 'approved' && (
+                            <Link to="/analytics">
+                              <Button size="sm" className="bg-[#E21833] hover:bg-[#C11528]">
+                                <BarChart3 className="w-4 h-4 mr-1" />
+                                Analytics
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           )}
         </div>
       </section>
