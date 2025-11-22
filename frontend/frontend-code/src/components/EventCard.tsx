@@ -24,6 +24,18 @@ export const EventCard = React.memo(function EventCard({ event, onViewDetails, o
   const spotsLeft = event.maxAttendees - event.attendees;
   const isAlmostFull = spotsLeft <= 10 && spotsLeft > 0;
   const isFull = spotsLeft <= 0;
+  const isWaitlisted = event.registrationStatus === 'waitlisted';
+  const isRegistered = event.registrationStatus === 'registered';
+  
+  // Determine button text
+  let buttonText = 'RSVP';
+  if (isRegistered) {
+    buttonText = 'Cancel RSVP';
+  } else if (isWaitlisted) {
+    buttonText = 'Cancel Waitlist';
+  } else if (isFull) {
+    buttonText = 'Join Waitlist';
+  }
   
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
@@ -77,13 +89,20 @@ export const EventCard = React.memo(function EventCard({ event, onViewDetails, o
           >
             View Details
           </Button>
-          <Button
-            className="flex-1 bg-[#E21833] hover:bg-[#C11528]"
-            variant={event.isRegistered ? "secondary" : "default"}
-            onClick={() => onToggleRSVP(event.id)}
-          >
-            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Join Waitlist' : 'RSVP'}
-          </Button>
+          <div className="flex-1 flex flex-col gap-1">
+            <Button
+              className="w-full bg-[#E21833] hover:bg-[#C11528]"
+              variant={event.isRegistered ? "secondary" : "default"}
+              onClick={() => onToggleRSVP(event.id)}
+            >
+              {buttonText}
+            </Button>
+            {/* {isWaitlisted && (
+              <Badge variant="outline" className="text-xs text-center bg-orange-50 text-orange-800 border-orange-200">
+                On Waitlist
+              </Badge>
+            )} */}
+          </div>
         </div>
       </div>
     </Card>

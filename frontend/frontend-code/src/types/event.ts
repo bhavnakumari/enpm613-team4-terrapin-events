@@ -39,6 +39,9 @@ export interface Event {
   approved_by_admin_id?: string;
   created_at: string;
   updated_at: string;
+  is_paid: boolean;
+  price?: number;
+  currency?: string;
 }
 
 /**
@@ -57,6 +60,10 @@ export interface CreateEventRequest {
   registration_close_time?: string;
   capacity: number;
   requested_admin_id?: string;
+  status?: EventStatus; // 'draft' or 'pending_approval'
+  is_paid?: boolean;
+  price?: number;
+  currency?: string;
 }
 
 /**
@@ -75,4 +82,7 @@ export interface UpdateEventRequest {
   registration_close_time?: string;
   capacity?: number;
   status?: EventStatus;
+  is_paid?: boolean;
+  price?: number;
+  currency?: string;
 }

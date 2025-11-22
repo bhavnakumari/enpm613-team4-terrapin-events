@@ -63,4 +63,18 @@ export const eventsService = {
       .filter(event => new Date(event.start_time) <= now)
       .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
   },
+
+  // Catalog and stats endpoints
+  async getCatalog(): Promise<any[]> {
+    return apiClient.get<any[]>('/api/events/catalog');
+  },
+
+  async getCategoryStats(): Promise<Array<{category: string, count: number}>> {
+    return apiClient.get<Array<{category: string, count: number}>>('/api/events/categories/stats');
+  },
+
+  // Admin-specific endpoints
+  async getPendingEvents(): Promise<any[]> {
+    return apiClient.get<any[]>('/api/events/admin/pending-events');
+  },
 };

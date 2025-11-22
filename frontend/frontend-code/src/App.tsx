@@ -5,13 +5,12 @@ import { Layout } from './components/Layout';
 import { LandingPage } from './pages/LandingPage';
 import { ParticipantHomePage } from './pages/ParticipantHomePage';
 import { AdminHomePage } from './pages/AdminHomePage';
+import { OrganiserHomePage } from './pages/OrganiserHomePage';
 import { LoginPage } from './pages/LoginPage';
 import { EventsCatalogPage } from './pages/EventsCatalogPage';
 import { CreateEventWizard } from './pages/CreateEventWizard';
 import { AdminApprovalPage } from './pages/AdminApprovalPage';
 import { UserProfilePage } from './pages/UserProfilePage';
-import { PaymentPage } from './pages/PaymentPage';
-import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPage';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
 
 // Protected Route Component
@@ -59,8 +58,12 @@ function HomeRoute() {
     return <LandingPage />;
   }
   
-  if (isAdmin || isOrganizer) {
+  if (isAdmin) {
     return <AdminHomePage />;
+  }
+  
+  if (isOrganizer) {
+    return <OrganiserHomePage />;
   }
   
   return <ParticipantHomePage />;
@@ -73,7 +76,7 @@ export default function App() {
         <Router>
           <Routes>
             {/* Login page without Layout */}
-            <Route path="/login" element={<LoginPage />} />
+            <Route path="/login" element={<LandingPage />} />
             
             {/* All other routes with Layout */}
             <Route path="/*" element={
@@ -103,16 +106,6 @@ export default function App() {
                   <Route path="/profile" element={
                     <ProtectedRoute>
                       <UserProfilePage />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/payment" element={
-                    <ProtectedRoute>
-                      <PaymentPage />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/registration-confirmation" element={
-                    <ProtectedRoute>
-                      <RegistrationConfirmationPage />
                     </ProtectedRoute>
                   } />
                   <Route path="/analytics" element={

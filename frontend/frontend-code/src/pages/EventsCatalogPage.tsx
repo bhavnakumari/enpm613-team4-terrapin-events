@@ -44,6 +44,7 @@ const convertBackendEventToFrontendFormat = (apiEvent: any): Event => {
     organizer: apiEvent.organizer_email,
     organizerId: apiEvent.organizer_id,
     isRegistered: apiEvent.is_user_registered || false,
+    registrationStatus: apiEvent.user_registration_status || null,
     status: apiEvent.status as any,
     createdAt: apiEvent.created_at,
   };
@@ -126,17 +127,26 @@ export function EventsCatalogPage() {
     if (!event) return;
 
     const isCancelling = event.isRegistered;
+    const isWaitlisted = event.registrationStatus === 'waitlisted';
 
     try {
       if (isCancelling) {
-        // Cancel registration
+        // Cancel registration (works for both registered and waitlisted)
         await apiClient.delete(`/api/events/${eventId}/register`);
+        
+        // Only decrement attendee count if user was registered (not waitlisted)
+        const newAttendeeCount = event.registrationStatus === 'registered' 
+          ? Math.max(0, event.attendees - 1) 
+          : event.attendees;
+        
         setEvents(events.map(e => 
-          e.id === eventId ? { ...e, isRegistered: false, attendees: Math.max(0, e.attendees - 1) } : e
+          e.id === eventId ? { ...e, isRegistered: false, registrationStatus: null, attendees: newAttendeeCount } : e
         ));
         
-        toast.success('Registration Cancelled', {
-          description: `You have successfully cancelled your registration for "${event.title}"`,
+        toast.success(isWaitlisted ? 'Waitlist Cancelled' : 'Registration Cancelled', {
+          description: isWaitlisted 
+            ? `You have been removed from the waitlist for "${event.title}"` 
+            : `You have successfully cancelled your registration for "${event.title}"`,
           duration: 4000,
         });
       } else {
@@ -146,7 +156,12 @@ export function EventsCatalogPage() {
         const wasWaitlisted = response.status === 'waitlisted';
         
         setEvents(events.map(e => 
-          e.id === eventId ? { ...e, isRegistered: true, attendees: wasWaitlisted ? e.attendees : e.attendees + 1 } : e
+          e.id === eventId ? { 
+            ...e, 
+            isRegistered: true, 
+            registrationStatus: wasWaitlisted ? 'waitlisted' : 'registered',
+            attendees: wasWaitlisted ? e.attendees : e.attendees + 1 
+          } : e
         ));
         
         if (wasWaitlisted) {
@@ -163,7 +178,7 @@ export function EventsCatalogPage() {
       }
     } catch (err) {
       console.error('Failed to toggle RSVP:', err);
-      const errorMessage = err instanceof Error ? err.message : (isCancelling ? 'Failed to cancel registration' : 'Failed to register for event');
+      const errorMessage = err instanceof Error ? err.message : (isCancelling ? 'Failed to cancel' : 'Failed to register for event');
       
       toast.error(isCancelling ? 'Cancellation Failed' : 'Registration Failed', {
         description: errorMessage,

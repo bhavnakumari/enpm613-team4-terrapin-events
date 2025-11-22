@@ -19,7 +19,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isOrganizer, isParticipant } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -56,15 +56,31 @@ export function Layout({ children }: LayoutProps) {
               >
                 Home
               </Link>
-              <Link
-                to="/events"
-                className={`hover:text-[#E21833] transition-colors ${
-                  isActive('/events') ? 'text-[#E21833]' : ''
-                }`}
-              >
-                Events Catalog
-              </Link>
-              {isAdmin && (
+              
+              {/* Participant Navigation */}
+              {isParticipant && (
+                <>
+                  <Link
+                    to="/events"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/events') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Events Catalog
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/profile') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    My Profile
+                  </Link>
+                </>
+              )}
+              
+              {/* Organiser Navigation */}
+              {isOrganizer && (
                 <>
                   <Link
                     to="/create-event"
@@ -74,6 +90,20 @@ export function Layout({ children }: LayoutProps) {
                   >
                     Create Event
                   </Link>
+                </>
+              )}
+              
+              {/* Admin Navigation */}
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/admin') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Admin Approval
+                  </Link>
                   <Link
                     to="/analytics"
                     className={`hover:text-[#E21833] transition-colors ${
@@ -81,14 +111,6 @@ export function Layout({ children }: LayoutProps) {
                     }`}
                   >
                     Analytics
-                  </Link>
-                  <Link
-                    to="/admin"
-                    className={`hover:text-[#E21833] transition-colors ${
-                      isActive('/admin') ? 'text-[#E21833]' : ''
-                    }`}
-                  >
-                    Admin
                   </Link>
                 </>
               )}

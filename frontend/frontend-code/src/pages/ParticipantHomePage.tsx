@@ -7,7 +7,8 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
 import { useState, useEffect } from 'react';
-import { apiClient } from '../lib/api-client';
+import { eventsService } from '../services/events.service';
+import { registrationsService } from '../services/registrations.service';
 
 export function ParticipantHomePage() {
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
@@ -26,9 +27,9 @@ export function ParticipantHomePage() {
       try {
         // Parallel API calls for better performance
         const [catalogEvents, regsWithEvents, categoryStats] = await Promise.all([
-          apiClient.get<any[]>('/api/events/catalog'),
-          apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events'),
-          apiClient.get<Array<{category: string, count: number}>>('/api/events/categories/stats')
+          eventsService.getCatalog(),
+          registrationsService.getMyRegistrationsWithEvents(),
+          eventsService.getCategoryStats()
         ]);
 
         const endTime = performance.now();

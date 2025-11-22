@@ -12,6 +12,7 @@ export interface Event {
   organizer: string;
   organizerId: string;
   isRegistered?: boolean;
+  registrationStatus?: 'registered' | 'waitlisted' | null;
   status: 'draft' | 'pending' | 'approved' | 'rejected';
   price?: number;
   tags?: string[];

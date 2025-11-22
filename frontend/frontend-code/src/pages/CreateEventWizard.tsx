@@ -11,6 +11,9 @@ import { Progress } from '../components/ui/progress';
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
+import { toast } from 'sonner';
+import { eventsService } from '../services/events.service';
+import type { EventCategory } from '../types/event';
 
 const steps = [
   { id: 1, title: 'Basic Info', icon: FileText },
@@ -25,23 +28,24 @@ const steps = [
 export function CreateEventWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
     title: '',
     description: '',
-    category: 'Academic' as const,
-    organizer: '',
-    contactEmail: '',
+    category: 'academic' as EventCategory,
     
     // Step 2: Date & Time
     date: '',
     startTime: '',
     endTime: '',
+    registrationOpenDate: '',
+    registrationOpenTime: '',
+    registrationCloseDate: '',
+    registrationCloseTime: '',
     
     // Step 3: Location
-    venue: '',
-    address: '',
-    roomNumber: '',
+    location: '',
     
     // Step 4: Pricing
     isFree: true,
@@ -50,13 +54,9 @@ export function CreateEventWizard() {
     
     // Step 5: Media
     imageUrl: '',
-    videoUrl: '',
     
     // Step 6: Settings
     requiresApproval: true,
-    allowWaitlist: true,
-    sendReminders: true,
-    tags: '',
   });
 
   const updateFormData = (field: string, value: any) => {
@@ -75,9 +75,87 @@ export function CreateEventWizard() {
     }
   };
 
-  const handleSubmit = () => {
-    console.log('Event created:', formData);
-    navigate('/events');
+  const handleSubmit = async (saveAsDraft: boolean = false) => {
+    try {
+      setIsSubmitting(true);
+
+      // Validation
+      if (!formData.title.trim()) {
+        toast.error('Please enter an event title');
+        setCurrentStep(1);
+        return;
+      }
+
+      if (!formData.location.trim()) {
+        toast.error('Please enter a location');
+        setCurrentStep(3);
+        return;
+      }
+
+      if (!formData.date || !formData.startTime) {
+        toast.error('Please set the event date and start time');
+        setCurrentStep(2);
+        return;
+      }
+
+      if (!formData.maxAttendees || parseInt(formData.maxAttendees) <= 0) {
+        toast.error('Please set a valid maximum number of attendees');
+        setCurrentStep(4);
+        return;
+      }
+
+      // Build ISO datetime strings
+      const startDateTime = `${formData.date}T${formData.startTime}:00`;
+      const endDateTime = formData.endTime ? `${formData.date}T${formData.endTime}:00` : undefined;
+      
+      const registrationOpenDateTime = (formData.registrationOpenDate && formData.registrationOpenTime) 
+        ? `${formData.registrationOpenDate}T${formData.registrationOpenTime}:00` 
+        : undefined;
+      
+      const registrationCloseDateTime = (formData.registrationCloseDate && formData.registrationCloseTime) 
+        ? `${formData.registrationCloseDate}T${formData.registrationCloseTime}:00` 
+        : undefined;
+
+      // Prepare API request
+      const eventData = {
+        title: formData.title,
+        description: formData.description || undefined,
+        category: formData.category,
+        location: formData.location,
+        banner: formData.imageUrl || undefined,
+        start_time: startDateTime,
+        end_time: endDateTime,
+        registration_open_time: registrationOpenDateTime,
+        registration_close_time: registrationCloseDateTime,
+        capacity: parseInt(formData.maxAttendees),
+        status: saveAsDraft ? 'draft' as const : (formData.requiresApproval ? 'pending_approval' as const : 'approved' as const),
+        is_paid: !formData.isFree,
+        price: formData.isFree ? undefined : parseFloat(formData.price),
+        currency: formData.isFree ? undefined : 'USD',
+      };
+
+      // Call API
+      const createdEvent = await eventsService.createEvent(eventData);
+
+      // Success feedback
+      if (saveAsDraft) {
+        toast.success('Event saved as draft successfully!');
+        navigate('/organiser-home');
+      } else if (formData.requiresApproval) {
+        toast.success('Event submitted for approval!', {
+          description: 'You will be notified once an admin reviews your event.',
+        });
+        navigate('/organiser-home');
+      } else {
+        toast.success('Event created and published!');
+        navigate('/events');
+      }
+    } catch (error: any) {
+      console.error('Error creating event:', error);
+      toast.error(error.message || 'Failed to create event. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const progress = (currentStep / steps.length) * 100;
@@ -159,7 +237,7 @@ export function CreateEventWizard() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
+                <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
@@ -169,44 +247,23 @@ export function CreateEventWizard() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select value={formData.category} onValueChange={(value) => updateFormData('category', value)}>
-                    <SelectTrigger id="category">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Academic">Academic</SelectItem>
-                      <SelectItem value="Social">Social</SelectItem>
-                      <SelectItem value="Sports">Sports</SelectItem>
-                      <SelectItem value="Workshop">Workshop</SelectItem>
-                      <SelectItem value="Cultural">Cultural</SelectItem>
-                      <SelectItem value="Career">Career</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="organizer">Organizer *</Label>
-                  <Input
-                    id="organizer"
-                    value={formData.organizer}
-                    onChange={(e) => updateFormData('organizer', e.target.value)}
-                    placeholder="Organization or club name"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="contactEmail">Contact Email *</Label>
-                <Input
-                  id="contactEmail"
-                  type="email"
-                  value={formData.contactEmail}
-                  onChange={(e) => updateFormData('contactEmail', e.target.value)}
-                  placeholder="contact@example.com"
-                />
+                <Label htmlFor="category">Category</Label>
+                <Select value={formData.category} onValueChange={(value: string) => updateFormData('category', value as EventCategory)}>
+                  <SelectTrigger id="category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="academic">Academic</SelectItem>
+                    <SelectItem value="social">Social</SelectItem>
+                    <SelectItem value="sports">Sports</SelectItem>
+                    <SelectItem value="workshop">Workshop</SelectItem>
+                    <SelectItem value="cultural">Cultural</SelectItem>
+                    <SelectItem value="career">Career</SelectItem>
+                    <SelectItem value="seminar">Seminar</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -219,35 +276,89 @@ export function CreateEventWizard() {
                 <p className="text-muted-foreground mb-6">When will your event take place?</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="date">Event Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => updateFormData('date', e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Event Schedule</h4>
                 <div className="space-y-2">
-                  <Label htmlFor="startTime">Start Time *</Label>
+                  <Label htmlFor="date">Event Date *</Label>
                   <Input
-                    id="startTime"
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => updateFormData('startTime', e.target.value)}
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => updateFormData('date', e.target.value)}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="endTime">End Time *</Label>
-                  <Input
-                    id="endTime"
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => updateFormData('endTime', e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startTime">Start Time *</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) => updateFormData('startTime', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={formData.endTime}
+                      onChange={(e) => updateFormData('endTime', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Registration Period (Optional)</h4>
+                <p className="text-sm text-muted-foreground">Set when students can register for this event</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="registrationOpenDate">Opens On</Label>
+                    <Input
+                      id="registrationOpenDate"
+                      type="date"
+                      value={formData.registrationOpenDate}
+                      onChange={(e) => updateFormData('registrationOpenDate', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="registrationOpenTime">Opens At</Label>
+                    <Input
+                      id="registrationOpenTime"
+                      type="time"
+                      value={formData.registrationOpenTime}
+                      onChange={(e) => updateFormData('registrationOpenTime', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="registrationCloseDate">Closes On</Label>
+                    <Input
+                      id="registrationCloseDate"
+                      type="date"
+                      value={formData.registrationCloseDate}
+                      onChange={(e) => updateFormData('registrationCloseDate', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="registrationCloseTime">Closes At</Label>
+                    <Input
+                      id="registrationCloseTime"
+                      type="time"
+                      value={formData.registrationCloseTime}
+                      onChange={(e) => updateFormData('registrationCloseTime', e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -268,33 +379,16 @@ export function CreateEventWizard() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="venue">Venue Name *</Label>
+                <Label htmlFor="location">Location *</Label>
                 <Input
-                  id="venue"
-                  value={formData.venue}
-                  onChange={(e) => updateFormData('venue', e.target.value)}
-                  placeholder="e.g., Main Auditorium"
+                  id="location"
+                  value={formData.location}
+                  onChange={(e) => updateFormData('location', e.target.value)}
+                  placeholder="e.g., Stamp Student Union, Room 2400"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Address *</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => updateFormData('address', e.target.value)}
-                  placeholder="e.g., Building A, University of Maryland"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="roomNumber">Room Number (Optional)</Label>
-                <Input
-                  id="roomNumber"
-                  value={formData.roomNumber}
-                  onChange={(e) => updateFormData('roomNumber', e.target.value)}
-                  placeholder="e.g., Room 301"
-                />
+                <p className="text-xs text-muted-foreground">
+                  Include building name, room number, and any other relevant details
+                </p>
               </div>
             </div>
           )}
@@ -315,7 +409,7 @@ export function CreateEventWizard() {
                 <Switch
                   id="isFree"
                   checked={formData.isFree}
-                  onCheckedChange={(checked) => updateFormData('isFree', checked)}
+                  onCheckedChange={(checked: boolean) => updateFormData('isFree', checked)}
                 />
               </div>
 
@@ -353,11 +447,11 @@ export function CreateEventWizard() {
             <div className="space-y-6">
               <div>
                 <h3 className="mb-4">Event Media</h3>
-                <p className="text-muted-foreground mb-6">Add images and videos to showcase your event</p>
+                <p className="text-muted-foreground mb-6">Add images to showcase your event</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="imageUrl">Cover Image URL</Label>
+                <Label htmlFor="imageUrl">Cover Image URL (Optional)</Label>
                 <Input
                   id="imageUrl"
                   value={formData.imageUrl}
@@ -367,16 +461,6 @@ export function CreateEventWizard() {
                 <p className="text-xs text-muted-foreground">
                   Recommended size: 1200x630px for best results
                 </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="videoUrl">Video URL (Optional)</Label>
-                <Input
-                  id="videoUrl"
-                  value={formData.videoUrl}
-                  onChange={(e) => updateFormData('videoUrl', e.target.value)}
-                  placeholder="https://youtube.com/watch?v=..."
-                />
               </div>
 
               {formData.imageUrl && (
@@ -413,41 +497,17 @@ export function CreateEventWizard() {
                   </div>
                   <Switch
                     checked={formData.requiresApproval}
-                    onCheckedChange={(checked) => updateFormData('requiresApproval', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div>
-                    <Label>Allow Waitlist</Label>
-                    <p className="text-sm text-muted-foreground">Let students join waitlist when event is full</p>
-                  </div>
-                  <Switch
-                    checked={formData.allowWaitlist}
-                    onCheckedChange={(checked) => updateFormData('allowWaitlist', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div>
-                    <Label>Send Reminders</Label>
-                    <p className="text-sm text-muted-foreground">Email reminders to registered attendees</p>
-                  </div>
-                  <Switch
-                    checked={formData.sendReminders}
-                    onCheckedChange={(checked) => updateFormData('sendReminders', checked)}
+                    onCheckedChange={(checked: boolean) => updateFormData('requiresApproval', checked)}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags (comma-separated)</Label>
-                <Input
-                  id="tags"
-                  value={formData.tags}
-                  onChange={(e) => updateFormData('tags', e.target.value)}
-                  placeholder="e.g., technology, innovation, networking"
-                />
+              <div className="p-4 bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 rounded-lg">
+                <p className="text-sm">
+                  {formData.requiresApproval 
+                    ? '✓ Your event will be submitted for admin approval and published after review.' 
+                    : '⚠️ Your event will be published immediately without admin review.'}
+                </p>
               </div>
             </div>
           )}
@@ -472,10 +532,12 @@ export function CreateEventWizard() {
                       <span className="text-muted-foreground">Category:</span>
                       <Badge>{formData.category}</Badge>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Organizer:</span>
-                      <span>{formData.organizer || 'Not set'}</span>
-                    </div>
+                    {formData.description && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted-foreground">Description:</span>
+                        <span className="text-xs">{formData.description}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -490,8 +552,20 @@ export function CreateEventWizard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Time:</span>
-                      <span>{formData.startTime && formData.endTime ? `${formData.startTime} - ${formData.endTime}` : 'Not set'}</span>
+                      <span>{formData.startTime && formData.endTime ? `${formData.startTime} - ${formData.endTime}` : formData.startTime || 'Not set'}</span>
                     </div>
+                    {formData.registrationOpenDate && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Registration Opens:</span>
+                        <span>{formData.registrationOpenDate} {formData.registrationOpenTime}</span>
+                      </div>
+                    )}
+                    {formData.registrationCloseDate && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Registration Closes:</span>
+                        <span>{formData.registrationCloseDate} {formData.registrationCloseTime}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -501,12 +575,8 @@ export function CreateEventWizard() {
                   <h4 className="mb-3">Location</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Venue:</span>
-                      <span>{formData.venue || 'Not set'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Address:</span>
-                      <span>{formData.address || 'Not set'}</span>
+                      <span className="text-muted-foreground">Location:</span>
+                      <span>{formData.location || 'Not set'}</span>
                     </div>
                   </div>
                 </div>
@@ -541,25 +611,37 @@ export function CreateEventWizard() {
             <Button
               variant="outline"
               onClick={prevStep}
-              disabled={currentStep === 1}
+              disabled={currentStep === 1 || isSubmitting}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Previous
             </Button>
 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate('/events')}>
-                Save Draft
+              <Button 
+                variant="outline" 
+                onClick={() => handleSubmit(true)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save Draft'}
               </Button>
               
               {currentStep < steps.length ? (
-                <Button onClick={nextStep} className="bg-[#E21833] hover:bg-[#C11528]">
+                <Button 
+                  onClick={nextStep} 
+                  className="bg-[#E21833] hover:bg-[#C11528]"
+                  disabled={isSubmitting}
+                >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleSubmit} className="bg-[#E21833] hover:bg-[#C11528]">
-                  Submit Event
+                <Button 
+                  onClick={() => handleSubmit(false)} 
+                  className="bg-[#E21833] hover:bg-[#C11528]"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Event'}
                   <Check className="w-4 h-4 ml-2" />
                 </Button>
               )}

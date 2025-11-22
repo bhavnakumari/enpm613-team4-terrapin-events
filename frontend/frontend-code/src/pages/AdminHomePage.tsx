@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { 
   Calendar, 
   Users, 
@@ -11,14 +12,93 @@ import {
   AlertCircle,
   BarChart3,
   FileText,
-  Settings
+  Settings,
+  Loader2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
+import { eventsService } from '../services/events.service';
+import { toast } from 'sonner';
+
+interface PendingEvent {
+  event_id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  location: string;
+  start_time: string;
+  capacity: number;
+  organizer_id: string;
+  organizer_email: string;
+  organizer_name?: string;
+  organizer_department?: string;
+  created_at: string;
+  status: string;
+}
 
 export function AdminHomePage() {
+  const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([]);
+  const [isLoadingPending, setIsLoadingPending] = useState(true);
+  const [approvingEventId, setApprovingEventId] = useState<string | null>(null);
+  const [rejectingEventId, setRejectingEventId] = useState<string | null>(null);
+  // Load pending events on mount
+  useEffect(() => {
+    loadPendingEvents();
+  }, []);
+
+  const loadPendingEvents = async () => {
+    try {
+      setIsLoadingPending(true);
+      const events = await eventsService.getPendingEvents();
+      setPendingEvents(events);
+    } catch (error) {
+      console.error('Failed to load pending events:', error);
+      toast.error('Failed to load pending events');
+    } finally {
+      setIsLoadingPending(false);
+    }
+  };
+
+  const handleApprove = async (eventId: string) => {
+    try {
+      setApprovingEventId(eventId);
+      await eventsService.updateEvent(eventId, { status: 'approved' });
+      toast.success('Event approved successfully');
+      // Remove from pending list
+      setPendingEvents(prev => prev.filter(e => e.event_id !== eventId));
+    } catch (error) {
+      console.error('Failed to approve event:', error);
+      toast.error('Failed to approve event');
+    } finally {
+      setApprovingEventId(null);
+    }
+  };
+
+  const handleReject = async (eventId: string) => {
+    try {
+      setRejectingEventId(eventId);
+      await eventsService.updateEvent(eventId, { status: 'rejected' });
+      toast.success('Event rejected');
+      // Remove from pending list
+      setPendingEvents(prev => prev.filter(e => e.event_id !== eventId));
+    } catch (error) {
+      console.error('Failed to reject event:', error);
+      toast.error('Failed to reject event');
+    } finally {
+      setRejectingEventId(null);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   const stats = [
     {
       title: 'Total Events',
@@ -30,8 +110,8 @@ export function AdminHomePage() {
     },
     {
       title: 'Pending Approval',
-      value: '8',
-      change: '+3',
+      value: pendingEvents.length.toString(),
+      change: `${pendingEvents.length} new`,
       icon: Clock,
       color: 'text-orange-600 dark:text-orange-400',
       bgColor: 'bg-orange-500/10',
@@ -51,33 +131,6 @@ export function AdminHomePage() {
       icon: TrendingUp,
       color: 'text-purple-600 dark:text-purple-400',
       bgColor: 'bg-purple-500/10',
-    },
-  ];
-
-  const pendingEvents = [
-    {
-      id: '1',
-      title: 'AI & Machine Learning Workshop',
-      organizer: 'Computer Science Club',
-      submittedDate: 'Nov 18, 2025',
-      category: 'Academic',
-      status: 'pending',
-    },
-    {
-      id: '2',
-      title: 'Spring Festival 2026 Planning',
-      organizer: 'Student Activities Office',
-      submittedDate: 'Nov 17, 2025',
-      category: 'Social',
-      status: 'pending',
-    },
-    {
-      id: '3',
-      title: 'Entrepreneurship Pitch Competition',
-      organizer: 'Business School',
-      submittedDate: 'Nov 16, 2025',
-      category: 'Career',
-      status: 'pending',
     },
   ];
 
@@ -146,7 +199,7 @@ export function AdminHomePage() {
   const quickActions = [
     {
       title: 'Review Pending Events',
-      description: '8 events awaiting approval',
+      description: `${pendingEvents.length} events awaiting approval`,
       icon: Shield,
       link: '/admin',
       color: 'bg-orange-500',
@@ -241,42 +294,79 @@ export function AdminHomePage() {
                   </Link>
                 </div>
 
-                <div className="space-y-4">
-                  {pendingEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h3 className="mb-1">{event.title}</h3>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span>By {event.organizer}</span>
-                            <span>•</span>
-                            <span>{event.submittedDate}</span>
-                            <Badge variant="outline" className="ml-2">
-                              {event.category}
-                            </Badge>
+                {isLoadingPending ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : pendingEvents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No pending events to review</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingEvents.slice(0, 3).map((event) => (
+                      <div
+                        key={event.event_id}
+                        className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="mb-1">{event.title}</h3>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span>By {event.organizer_name || event.organizer_email}</span>
+                              <span>•</span>
+                              <span>{formatDate(event.created_at)}</span>
+                              {event.category && (
+                                <Badge variant="outline" className="ml-2">
+                                  {event.category}
+                                </Badge>
+                              )}
+                            </div>
+                            {event.organizer_department && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Department: {event.organizer_department}
+                              </p>
+                            )}
                           </div>
                         </div>
+                        <div className="flex gap-2 mt-3">
+                          <Button 
+                            size="sm" 
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleApprove(event.event_id)}
+                            disabled={approvingEventId === event.event_id || rejectingEventId === event.event_id}
+                          >
+                            {approvingEventId === event.event_id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                            )}
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <FileText className="w-4 h-4 mr-1" />
+                            Review
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleReject(event.event_id)}
+                            disabled={approvingEventId === event.event_id || rejectingEventId === event.event_id}
+                          >
+                            {rejectingEventId === event.event_id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <XCircle className="w-4 h-4 mr-1" />
+                            )}
+                            Reject
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2 mt-3">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <FileText className="w-4 h-4 mr-1" />
-                          Review
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
-                          <XCircle className="w-4 h-4 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </Card>
 
               {/* Upcoming Events */}
