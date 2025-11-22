@@ -76,73 +76,7 @@ export function ParticipantHomePage() {
     fetchData();
   }, []);
 
-  /* MOCK DATA - COMMENTED OUT (Using Real API Now)
-  const upcomingEvents = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      date: 'December 15, 2025',
-      time: '2:00 PM',
-      location: 'Stamp Student Union',
-      category: 'Academic',
-      attendees: 145,
-      image: 'https://images.unsplash.com/photo-1760420940953-3958ad9f6287?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwY29uZmVyZW5jZSUyMHdvcmtzaG9wfGVufDF8fHx8MTc2MzE3NTM1NHww&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '2',
-      title: 'Welcome Week Social Mixer',
-      date: 'November 20, 2025',
-      time: '6:00 PM',
-      location: 'McKeldin Library',
-      category: 'Social',
-      attendees: 87,
-      image: 'https://images.unsplash.com/photo-1632834380561-d1e05839a33a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bml2ZXJzaXR5JTIwY2FtcHVzJTIwc3R1ZGVudHN8ZW58MXx8fHwxNzYzMDcyMjI5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '3',
-      title: 'Basketball Tournament',
-      date: 'November 25, 2025',
-      time: '4:00 PM',
-      location: 'Xfinity Center',
-      category: 'Sports',
-      attendees: 96,
-      image: 'https://images.unsplash.com/photo-1762709753300-342ab94e8b05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2xsZWdlJTIwc3BvcnRzJTIwZXZlbnR8ZW58MXx8fHwxNzYzMTc1MzU0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '4',
-      title: 'Career Fair 2025',
-      date: 'December 1, 2025',
-      time: '10:00 AM',
-      location: 'Stamp Student Union',
-      category: 'Career',
-      attendees: 234,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXJlZXIlMjBmYWlyfGVufDB8fHx8MTczMjA1MjY0NXww&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-  ];
-
-  const myRegistrations = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      date: 'December 15, 2025',
-      status: 'Confirmed',
-    },
-    {
-      id: '5',
-      title: 'Study Abroad Info Session',
-      date: 'November 28, 2025',
-      status: 'Confirmed',
-    },
-  ];
-
-  const categories = [
-    { name: 'Academic', count: 24, color: 'bg-blue-500', bgGradient: 'from-blue-500/10 to-blue-500/5', iconBg: 'bg-blue-500' },
-    { name: 'Social', count: 18, color: 'bg-purple-500', bgGradient: 'from-purple-500/10 to-purple-500/5', iconBg: 'bg-purple-500' },
-    { name: 'Sports', count: 15, color: 'bg-green-500', bgGradient: 'from-green-500/10 to-green-500/5', iconBg: 'bg-green-500' },
-    { name: 'Career', count: 12, color: 'bg-orange-500', bgGradient: 'from-orange-500/10 to-orange-500/5', iconBg: 'bg-orange-500' },
-    { name: 'Arts', count: 9, color: 'bg-pink-500', bgGradient: 'from-pink-500/10 to-pink-500/5', iconBg: 'bg-pink-500' },
-  ];
-  */
+  
 
   return (
     <div className="min-h-screen">

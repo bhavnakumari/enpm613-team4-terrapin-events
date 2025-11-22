@@ -135,7 +135,7 @@ export function Layout({ children }: LayoutProps) {
                 </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm">
-                  <div>{user?.name || 'John Terp'}</div>
+                  <div>{user ? `${user.first_name} ${user.last_name}` : 'John Terp'}</div>
                   <div className="text-xs text-muted-foreground">{user?.email || 'john@umd.edu'}</div>
                 </div>
                 <DropdownMenuSeparator />

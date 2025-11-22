@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight, Calendar, MapPin, DollarSign, Image as ImageIcon, FileText, Settings } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -13,6 +14,7 @@ import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { toast } from 'sonner';
 import { eventsService } from '../services/events.service';
+import umdCampusImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
 import type { EventCategory } from '../types/event';
 
 const steps = [
@@ -27,8 +29,16 @@ const steps = [
 
 export function CreateEventWizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get('draft');
+  const editId = searchParams.get('edit');
+  const resubmitId = searchParams.get('resubmit');
+  const eventId = draftId || editId || resubmitId;
+  const isEditMode = !!eventId;
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
     title: '',
@@ -56,12 +66,64 @@ export function CreateEventWizard() {
     imageUrl: '',
     
     // Step 6: Settings
-    requiresApproval: true,
+    adminDirectoryId: '',
   });
 
   const updateFormData = (field: string, value: any) => {
     setFormData({ ...formData, [field]: value });
   };
+
+  // Load draft event data when editing
+  useEffect(() => {
+    const loadDraftEvent = async () => {
+      if (!eventId) return;
+      
+      try {
+        setIsLoading(true);
+        const event = await eventsService.getEventById(eventId);
+        
+        // Parse dates and times from ISO strings
+        const startDate = new Date(event.start_time);
+        const endDate = event.end_time ? new Date(event.end_time) : null;
+        const regOpenDate = event.registration_open_time ? new Date(event.registration_open_time) : null;
+        const regCloseDate = event.registration_close_time ? new Date(event.registration_close_time) : null;
+        
+        // Format date as YYYY-MM-DD
+        const formatDate = (date: Date) => date.toISOString().split('T')[0];
+        // Format time as HH:MM
+        const formatTime = (date: Date) => date.toTimeString().slice(0, 5);
+        
+        setFormData({
+          title: event.title || '',
+          description: event.description || '',
+          category: event.category || 'academic',
+          date: formatDate(startDate),
+          startTime: formatTime(startDate),
+          endTime: endDate ? formatTime(endDate) : '',
+          registrationOpenDate: regOpenDate ? formatDate(regOpenDate) : '',
+          registrationOpenTime: regOpenDate ? formatTime(regOpenDate) : '',
+          registrationCloseDate: regCloseDate ? formatDate(regCloseDate) : '',
+          registrationCloseTime: regCloseDate ? formatTime(regCloseDate) : '',
+          location: event.location || '',
+          isFree: !event.is_paid,
+          price: event.price ? event.price.toString() : '',
+          maxAttendees: event.capacity ? event.capacity.toString() : '',
+          imageUrl: event.banner || '',
+          adminDirectoryId: event.requested_admin_id || '',
+        });
+        
+        toast.success('Draft loaded successfully!');
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+        toast.error('Failed to load draft event');
+        navigate('/organiser-home');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadDraftEvent();
+  }, [eventId, navigate]);
 
   const nextStep = () => {
     if (currentStep < steps.length) {
@@ -104,6 +166,12 @@ export function CreateEventWizard() {
         return;
       }
 
+      if (!formData.adminDirectoryId.trim()) {
+        toast.error('Please enter the Admin Directory ID');
+        setCurrentStep(6);
+        return;
+      }
+
       // Build ISO datetime strings
       const startDateTime = `${formData.date}T${formData.startTime}:00`;
       const endDateTime = formData.endTime ? `${formData.date}T${formData.endTime}:00` : undefined;
@@ -128,27 +196,32 @@ export function CreateEventWizard() {
         registration_open_time: registrationOpenDateTime,
         registration_close_time: registrationCloseDateTime,
         capacity: parseInt(formData.maxAttendees),
-        status: saveAsDraft ? 'draft' as const : (formData.requiresApproval ? 'pending_approval' as const : 'approved' as const),
+        status: saveAsDraft ? 'draft' as const : 'pending_approval' as const,
+        requested_admin_id: formData.adminDirectoryId,
         is_paid: !formData.isFree,
         price: formData.isFree ? undefined : parseFloat(formData.price),
         currency: formData.isFree ? undefined : 'USD',
       };
 
       // Call API
-      const createdEvent = await eventsService.createEvent(eventData);
+      let createdEvent;
+      if (isEditMode && eventId) {
+        // Update existing event
+        createdEvent = await eventsService.updateEvent(eventId, eventData);
+      } else {
+        // Create new event
+        createdEvent = await eventsService.createEvent(eventData);
+      }
 
       // Success feedback
       if (saveAsDraft) {
-        toast.success('Event saved as draft successfully!');
+        toast.success(isEditMode ? 'Draft updated successfully!' : 'Event saved as draft successfully!');
         navigate('/organiser-home');
-      } else if (formData.requiresApproval) {
-        toast.success('Event submitted for approval!', {
+      } else {
+        toast.success(isEditMode ? 'Event updated and submitted for approval!' : 'Event submitted for approval!', {
           description: 'You will be notified once an admin reviews your event.',
         });
         navigate('/organiser-home');
-      } else {
-        toast.success('Event created and published!');
-        navigate('/events');
       }
     } catch (error: any) {
       console.error('Error creating event:', error);
@@ -161,60 +234,95 @@ export function CreateEventWizard() {
   const progress = (currentStep / steps.length) * 100;
 
   return (
-    <div className="min-h-screen bg-muted/30 py-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="mb-2 text-[#E21833]">Create New Event</h1>
-          <p className="text-muted-foreground">Follow the steps below to create your campus event</p>
+    <div className="min-h-screen bg-background">
+      {/* Hero Banner */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        className="relative h-48 overflow-hidden"
+      >
+        <img
+          src={umdCampusImage}
+          alt="UMD Campus"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#E21833]/90 to-[#C11528]/80 dark:from-[#C11528]/90 dark:to-[#A01020]/80" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center text-white">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="mb-2 text-white"
+            >
+              Create New Event
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="text-xl text-white/90"
+            >
+              Bring your campus event to life
+            </motion.p>
+          </div>
         </div>
+      </motion.div>
 
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Progress Bar */}
-        <Card className="p-6 mb-8">
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span>Step {currentStep} of {steps.length}</span>
-              <span className="text-muted-foreground">{Math.round(progress)}% Complete</span>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <Card className="p-6 mb-8">
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span>Step {currentStep} of {steps.length}</span>
+                <span className="text-muted-foreground">{Math.round(progress)}% Complete</span>
+              </div>
+              <Progress value={progress} className="h-2" />
             </div>
-            <Progress value={progress} className="h-2" />
-          </div>
 
-          {/* Step Indicators */}
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => {
-              const isCompleted = currentStep > step.id;
-              const isCurrent = currentStep === step.id;
-              const StepIcon = step.icon;
+            {/* Step Indicators */}
+            <div className="flex items-center justify-between">
+              {steps.map((step, index) => {
+                const isCompleted = currentStep > step.id;
+                const isCurrent = currentStep === step.id;
+                const StepIcon = step.icon;
 
-              return (
-                <div key={step.id} className="flex flex-col items-center flex-1">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-colors ${
-                      isCompleted
-                        ? 'bg-[#E21833] text-white'
-                        : isCurrent
-                        ? 'bg-[#E21833]/10 text-[#E21833] border-2 border-[#E21833]'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
-                  </div>
-                  <span className={`text-xs text-center ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {step.title}
-                  </span>
-                  {index < steps.length - 1 && (
+                return (
+                  <div key={step.id} className="flex flex-col items-center flex-1">
                     <div
-                      className={`absolute h-0.5 w-[calc(100%/7)] left-[calc(${index}/7*100%+5%)] top-5 ${
-                        isCompleted ? 'bg-[#E21833]' : 'bg-muted'
+                      className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-colors ${
+                        isCompleted
+                          ? 'bg-[#E21833] text-white'
+                          : isCurrent
+                          ? 'bg-[#E21833]/10 text-[#E21833] border-2 border-[#E21833]'
+                          : 'bg-muted text-muted-foreground'
                       }`}
-                      style={{ left: `calc(${(index / steps.length) * 100}% + ${100 / steps.length / 2}%)` }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+                    >
+                      {isCompleted ? <Check className="w-5 h-5" /> : <StepIcon className="w-5 h-5" />}
+                    </div>
+                    <span className={`text-xs text-center ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {step.title}
+                    </span>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={`absolute h-0.5 w-[calc(100%/7)] left-[calc(${index}/7*100%+5%)] top-5 ${
+                          isCompleted ? 'bg-[#E21833]' : 'bg-muted'
+                        }`}
+                        style={{ left: `calc(${(index / steps.length) * 100}% + ${100 / steps.length / 2}%)` }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Form Content */}
         <Card className="p-8">
@@ -486,27 +594,28 @@ export function CreateEventWizard() {
             <div className="space-y-6">
               <div>
                 <h3 className="mb-4">Event Settings</h3>
-                <p className="text-muted-foreground mb-6">Configure additional options</p>
+                <p className="text-muted-foreground mb-6">Configure admin approval settings</p>
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div>
-                    <Label>Require Admin Approval</Label>
-                    <p className="text-sm text-muted-foreground">Event must be approved before going live</p>
-                  </div>
-                  <Switch
-                    checked={formData.requiresApproval}
-                    onCheckedChange={(checked: boolean) => updateFormData('requiresApproval', checked)}
+                <div className="space-y-2">
+                  <Label htmlFor="adminDirectoryId">Admin Directory ID *</Label>
+                  <Input
+                    id="adminDirectoryId"
+                    value={formData.adminDirectoryId}
+                    onChange={(e) => updateFormData('adminDirectoryId', e.target.value)}
+                    placeholder="e.g., admin123"
+                    required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the Directory ID of the admin who will review and approve this event
+                  </p>
                 </div>
               </div>
 
               <div className="p-4 bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 rounded-lg">
                 <p className="text-sm">
-                  {formData.requiresApproval 
-                    ? '✓ Your event will be submitted for admin approval and published after review.' 
-                    : '⚠️ Your event will be published immediately without admin review.'}
+                  ✓ All events require admin approval. Your event will be submitted for review and published after approval.
                 </p>
               </div>
             </div>
@@ -600,7 +709,7 @@ export function CreateEventWizard() {
 
               <div className="p-4 bg-[#E21833]/10 dark:bg-[#C11528]/20 border border-[#E21833]/20 rounded-lg">
                 <p className="text-sm">
-                  <strong>Note:</strong> {formData.requiresApproval ? 'Your event will be submitted for admin approval. You will receive an email notification once it has been reviewed.' : 'Your event will be published immediately.'}
+                  <strong>Note:</strong> Your event will be submitted for admin approval. You will receive an email notification once it has been reviewed.
                 </p>
               </div>
             </div>

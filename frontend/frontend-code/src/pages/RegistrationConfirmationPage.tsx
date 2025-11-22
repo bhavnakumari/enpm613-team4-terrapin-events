@@ -1,53 +1,71 @@
-import { Link } from 'react-router-dom';
-import { CheckCircle, Calendar, MapPin, Clock, Download, Share2, Mail } from 'lucide-react';
+import { Link, useLocation, Navigate } from 'react-router-dom';
+import { CheckCircle, Calendar, MapPin, Clock, Download, Share2, Mail, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { Badge } from '../components/ui/badge';
+import { useAuth } from '../contexts/AuthContext';
 
 export function RegistrationConfirmationPage() {
-  const registration = {
-    ticketNumber: 'TS-2025-001234',
-    event: {
-      title: 'Annual Tech Symposium 2025',
-      date: 'December 15, 2025',
-      time: '9:00 AM - 5:00 PM',
-      location: 'Main Auditorium, Building A',
-      address: 'University of Maryland, College Park, MD 20742',
-    },
-    payment: {
-      amount: 27.50,
-      method: 'Credit Card ending in 3456',
-      transactionId: 'TXN-20251115-789012',
-    },
-    attendee: {
-      name: 'John Terp',
-      email: 'john@umd.edu',
-    },
-  };
+  const location = useLocation();
+  const { user } = useAuth();
+  
+  // Receive from navigation state: { registration, event, amount?, ticketNumber? }
+  const { registration: regData, event, amount, ticketNumber } = location.state || {};
+
+  // Redirect if no registration data
+  if (!regData || !event) {
+    return <Navigate to="/events" replace />;
+  }
+
+  const isPaidEvent = event.price && event.price > 0;
+  const isWaitlisted = regData.status === 'waitlisted';
 
   return (
     <div className="min-h-screen bg-muted/30 py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Success Message */}
+        {/* Success/Waitlist Message */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-500" />
+          <div className={`w-20 h-20 ${isWaitlisted ? 'bg-orange-100 dark:bg-orange-900/20' : 'bg-green-100 dark:bg-green-900/20'} rounded-full flex items-center justify-center mx-auto mb-6`}>
+            {isWaitlisted ? (
+              <AlertCircle className="w-12 h-12 text-orange-600 dark:text-orange-500" />
+            ) : (
+              <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-500" />
+            )}
           </div>
-          <h1 className="mb-2">Registration Confirmed!</h1>
-          <p className="text-xl text-muted-foreground">
-            You're all set for {registration.event.title}
-          </p>
+          <h1 className="mb-2">
+            {isWaitlisted ? "You're on the Waitlist!" : "Registration Confirmed!"}
+          </h1>
+          {isWaitlisted ? (
+            <div>
+              <p className="text-xl text-muted-foreground mb-3">
+                {event.title} is currently at full capacity
+              </p>
+              <Badge variant="outline" className="bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-300 border-orange-300">
+                Waitlist Position: #{regData.waitlist_position || 'TBD'}
+              </Badge>
+            </div>
+          ) : (
+            <p className="text-xl text-muted-foreground">
+              You're all set for {event.title}
+            </p>
+          )}
         </div>
 
         {/* Confirmation Details */}
         <Card className="p-8 mb-6">
           <div className="text-center mb-6">
-            <div className="inline-block px-4 py-2 bg-muted rounded-lg mb-4">
-              <p className="text-sm text-muted-foreground mb-1">Ticket Number</p>
-              <p className="font-mono text-xl">{registration.ticketNumber}</p>
-            </div>
+            {ticketNumber && !isWaitlisted && (
+              <div className="inline-block px-4 py-2 bg-muted rounded-lg mb-4">
+                <p className="text-sm text-muted-foreground mb-1">Ticket Number</p>
+                <p className="font-mono text-xl">{ticketNumber}</p>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
-              A confirmation email has been sent to {registration.attendee.email}
+              {isWaitlisted 
+                ? `We'll notify you at ${user?.email} if a spot becomes available`
+                : `A confirmation email has been sent to ${user?.email}`
+              }
             </p>
           </div>
 
@@ -62,7 +80,7 @@ export function RegistrationConfirmationPage() {
                 <Calendar className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm">Date</p>
-                  <p className="text-sm text-muted-foreground">{registration.event.date}</p>
+                  <p className="text-sm text-muted-foreground">{event.formattedDate}</p>
                 </div>
               </div>
 
@@ -70,7 +88,7 @@ export function RegistrationConfirmationPage() {
                 <Clock className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm">Time</p>
-                  <p className="text-sm text-muted-foreground">{registration.event.time}</p>
+                  <p className="text-sm text-muted-foreground">{event.formattedTime}</p>
                 </div>
               </div>
 
@@ -79,35 +97,34 @@ export function RegistrationConfirmationPage() {
                 <div>
                   <p className="text-sm">Location</p>
                   <p className="text-sm text-muted-foreground">
-                    {registration.event.location}<br />
-                    {registration.event.address}
+                    {event.location}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <Separator className="my-6" />
+          {isPaidEvent && amount && !isWaitlisted && (
+            <>
+              <Separator className="my-6" />
 
-          {/* Payment Summary */}
-          <div className="space-y-4">
-            <h4>Payment Summary</h4>
-            
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Amount Paid</span>
-                <span>${registration.payment.amount.toFixed(2)}</span>
+              {/* Payment Summary */}
+              <div className="space-y-4">
+                <h4>Payment Summary</h4>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount Paid</span>
+                    <span>${amount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Registration ID</span>
+                    <span className="font-mono text-xs">{regData.registration_id}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Payment Method</span>
-                <span>{registration.payment.method}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Transaction ID</span>
-                <span className="font-mono text-xs">{registration.payment.transactionId}</span>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </Card>
 
         {/* Actions */}
@@ -131,10 +148,21 @@ export function RegistrationConfirmationPage() {
           <Card className="p-6">
             <h4 className="mb-3">What's Next?</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• Your ticket has been emailed to you</li>
-              <li>• Add the event to your calendar</li>
-              <li>• We'll send you a reminder 24 hours before</li>
-              <li>• Bring your ticket (digital or printed) to the event</li>
+              {isWaitlisted ? (
+                <>
+                  <li>• You'll receive an email if a spot opens up</li>
+                  <li>• Your waitlist position is #{regData.waitlist_position || 'TBD'}</li>
+                  <li>• Check your profile for waitlist status updates</li>
+                  <li>• We'll notify you at least 24 hours before the event</li>
+                </>
+              ) : (
+                <>
+                  <li>• Your ticket has been emailed to you</li>
+                  <li>• Add the event to your calendar</li>
+                  <li>• We'll send you a reminder 24 hours before</li>
+                  <li>• {isPaidEvent ? 'Bring your ticket (digital or printed)' : 'Check in at the event'}</li>
+                </>
+              )}
             </ul>
           </Card>
 

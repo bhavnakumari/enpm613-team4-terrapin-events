@@ -16,21 +16,31 @@ class Registration(BaseModel):
     registration_id: str
     event_id: str
     user_id: str
-    user_email: EmailStr         # <-- REQUIRED
+    user_email: EmailStr
     status: RegistrationStatus
-    waitlist_position: Optional[int]
+    waitlist_position: Optional[int] = None
     registered_at: datetime
-
-    payment_status: Optional[str]
-    amount_paid: Optional[float]
-    # 👇 NEW PAYMENT FIELDS
+    
+    # Payment fields
     payment_status: Optional[str] = Field(
-        default=None,
-        description="paid / not_required / failed"
+        default="not_required",
+        description="paid | not_required | failed | refunded"
     )
     amount_paid: Optional[float] = Field(
         default=None,
         description="Amount charged to the user (if paid event)"
+    )
+    payment_transaction_id: Optional[str] = Field(
+        default=None,
+        description="Payment processor transaction ID"
+    )
+    payment_timestamp: Optional[datetime] = Field(
+        default=None,
+        description="When payment was processed"
+    )
+    payment_method_last4: Optional[str] = Field(
+        default=None,
+        description="Last 4 digits of payment card"
     )
 
     class Config:

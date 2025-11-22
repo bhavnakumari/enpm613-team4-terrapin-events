@@ -8,6 +8,9 @@ import { AdminHomePage } from './pages/AdminHomePage';
 import { OrganiserHomePage } from './pages/OrganiserHomePage';
 import { LoginPage } from './pages/LoginPage';
 import { EventsCatalogPage } from './pages/EventsCatalogPage';
+import { EventDetailsPage } from './pages/EventDetailsPage';
+import { PaymentPage } from './pages/PaymentPage';
+import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPage';
 import { CreateEventWizard } from './pages/CreateEventWizard';
 import { AdminApprovalPage } from './pages/AdminApprovalPage';
 import { UserProfilePage } from './pages/UserProfilePage';
@@ -76,7 +79,7 @@ export default function App() {
         <Router>
           <Routes>
             {/* Login page without Layout */}
-            <Route path="/login" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
             
             {/* All other routes with Layout */}
             <Route path="/*" element={
@@ -90,7 +93,17 @@ export default function App() {
                   } />
                   <Route path="/events/:id" element={
                     <ProtectedRoute>
-                      <EventsCatalogPage />
+                      <EventDetailsPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/payment" element={
+                    <ProtectedRoute>
+                      <PaymentPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/registration-confirmation" element={
+                    <ProtectedRoute>
+                      <RegistrationConfirmationPage />
                     </ProtectedRoute>
                   } />
                   <Route path="/create-event" element={

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Plus, 
@@ -23,171 +23,141 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { eventsService } from '../services/events.service';
+import { toast } from 'sonner';
+import type { Event } from '../types/event';
 
 export function OrganiserHomePage() {
   const [activeTab, setActiveTab] = useState<'drafts' | 'published'>('drafts');
+  const [draftEvents, setDraftEvents] = useState<any[]>([]);
+  const [publishedEvents, setPublishedEvents] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    drafts: 0,
+    attendees: 0,
+    approvalRate: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = [
+  useEffect(() => {
+    const fetchMyEvents = async () => {
+      try {
+        setIsLoading(true);
+        const myEvents = await eventsService.getMyEvents();
+        
+        // Separate draft and published events
+        const drafts = myEvents
+          .filter(e => e.status === 'draft')
+          .map(e => ({
+            id: e.event_id,
+            title: e.title,
+            lastEdited: new Date(e.updated_at).toLocaleDateString(),
+            completeness: e.description && e.location && e.start_time ? 100 : 50,
+            category: (e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Event'),
+            description: e.description || 'No description',
+            estimatedAttendees: e.capacity,
+          }));
+        
+        const published = myEvents
+          .filter(e => e.status !== 'draft')
+          .map(e => ({
+            id: e.event_id,
+            title: e.title,
+            submittedDate: new Date(e.created_at).toLocaleDateString(),
+            status: e.status,
+            attendees: 0, // Will be populated from registrations
+            category: (e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Event'),
+            views: 0,
+            rejectionReason: e.status === 'rejected' ? 'See event details' : undefined
+          }));
+        
+        setDraftEvents(drafts);
+        setPublishedEvents(published);
+        
+        // Calculate stats
+        const approved = myEvents.filter(e => e.status === 'approved').length;
+        const total = myEvents.filter(e => e.status !== 'draft').length;
+        setStats({
+          total: myEvents.length,
+          drafts: drafts.length,
+          attendees: 0, // Will be calculated from registrations
+          approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0
+        });
+      } catch (err) {
+        console.error('Failed to fetch events:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMyEvents();
+  }, []);
+
+  const handlePublishDraft = async (eventId: string) => {
+    try {
+      // Update event status from draft to pending_approval
+      await eventsService.updateEvent(eventId, { status: 'pending_approval' });
+      
+      toast.success('Event published and submitted for approval!', {
+        description: 'You will be notified once an admin reviews your event.',
+      });
+      
+      // Refresh events list
+      const myEvents = await eventsService.getMyEvents();
+      const drafts = myEvents.filter(e => e.status === 'draft').map(e => ({
+        id: e.event_id,
+        title: e.title,
+        lastEdited: new Date(e.updated_at).toLocaleDateString(),
+        completeness: e.description && e.location && e.start_time ? 100 : 50,
+        category: (e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Event'),
+        description: e.description || 'No description',
+        estimatedAttendees: e.capacity,
+      }));
+      const published = myEvents.filter(e => e.status !== 'draft').map(e => ({
+        id: e.event_id,
+        title: e.title,
+        submittedDate: new Date(e.created_at).toLocaleDateString(),
+        status: e.status,
+        attendees: 0,
+        category: (e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Event'),
+        views: 0,
+        rejectionReason: e.status === 'rejected' ? 'See event details' : undefined
+      }));
+      setDraftEvents(drafts);
+      setPublishedEvents(published);
+    } catch (error) {
+      console.error('Failed to publish draft:', error);
+      toast.error('Failed to publish event');
+    }
+  };
+
+  const statsDisplay = [
     {
       title: 'Total Events',
-      value: '12',
-      change: '+3 this month',
+      value: stats.total.toString(),
+      change: `${stats.drafts} drafts`,
       icon: Calendar,
       gradient: 'from-blue-500 to-cyan-500',
     },
     {
       title: 'Draft Events',
-      value: '10',
+      value: stats.drafts.toString(),
       change: 'In progress',
       icon: FileText,
       gradient: 'from-orange-500 to-amber-500',
     },
     {
       title: 'Total Attendees',
-      value: '847',
-      change: '+128 this week',
+      value: stats.attendees.toString(),
+      change: 'Across all events',
       icon: Users,
       gradient: 'from-green-500 to-emerald-500',
     },
     {
       title: 'Success Rate',
-      value: '94%',
+      value: `${stats.approvalRate}%`,
       change: 'Event approval',
       icon: Award,
       gradient: 'from-purple-500 to-pink-500',
-    },
-  ];
-
-  const draftEvents = [
-    {
-      id: '1',
-      title: 'AI & Machine Learning Workshop',
-      lastEdited: '2 hours ago',
-      completeness: 85,
-      category: 'Academic',
-      description: 'Hands-on workshop exploring the latest in AI technology',
-      estimatedAttendees: 150,
-    },
-    {
-      id: '2',
-      title: 'Spring Festival 2026',
-      lastEdited: '1 day ago',
-      completeness: 60,
-      category: 'Social',
-      description: 'Annual spring celebration with food, music, and activities',
-      estimatedAttendees: 500,
-    },
-    {
-      id: '3',
-      title: 'Entrepreneurship Bootcamp',
-      lastEdited: '3 days ago',
-      completeness: 45,
-      category: 'Career',
-      description: 'Intensive program for aspiring entrepreneurs',
-      estimatedAttendees: 80,
-    },
-    {
-      id: '4',
-      title: 'Photography Exhibition',
-      lastEdited: '5 days ago',
-      completeness: 30,
-      category: 'Arts',
-      description: 'Showcasing student photography from around campus',
-      estimatedAttendees: 200,
-    },
-    {
-      id: '5',
-      title: 'Cybersecurity Awareness Week',
-      lastEdited: '1 week ago',
-      completeness: 75,
-      category: 'Academic',
-      description: 'Week-long series of workshops and talks on digital security',
-      estimatedAttendees: 300,
-    },
-    {
-      id: '6',
-      title: 'Terps Basketball Watch Party',
-      lastEdited: '1 week ago',
-      completeness: 90,
-      category: 'Sports',
-      description: 'Live viewing of the championship game with snacks and prizes',
-      estimatedAttendees: 250,
-    },
-    {
-      id: '7',
-      title: 'Cultural Food Festival',
-      lastEdited: '2 weeks ago',
-      completeness: 55,
-      category: 'Social',
-      description: 'Celebrate diversity with international cuisine from student organizations',
-      estimatedAttendees: 600,
-    },
-    {
-      id: '8',
-      title: 'Hackathon 2026',
-      lastEdited: '2 weeks ago',
-      completeness: 40,
-      category: 'Academic',
-      description: '24-hour coding marathon with industry sponsors and prizes',
-      estimatedAttendees: 120,
-    },
-    {
-      id: '9',
-      title: 'Resume Writing Workshop',
-      lastEdited: '3 weeks ago',
-      completeness: 70,
-      category: 'Career',
-      description: 'Learn how to craft a compelling resume with career experts',
-      estimatedAttendees: 100,
-    },
-    {
-      id: '10',
-      title: 'Open Mic Night',
-      lastEdited: '3 weeks ago',
-      completeness: 25,
-      category: 'Arts',
-      description: 'Showcase your talents: music, poetry, comedy, and more',
-      estimatedAttendees: 150,
-    },
-  ];
-
-  const publishedEvents = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      submittedDate: 'Nov 10, 2025',
-      status: 'approved',
-      attendees: 145,
-      category: 'Academic',
-      views: 1250,
-    },
-    {
-      id: '2',
-      title: 'Campus Charity Run',
-      submittedDate: 'Nov 15, 2025',
-      status: 'waiting',
-      attendees: 0,
-      category: 'Sports',
-      views: 432,
-    },
-    {
-      id: '3',
-      title: 'Late Night Concert Series',
-      submittedDate: 'Nov 12, 2025',
-      status: 'rejected',
-      attendees: 0,
-      category: 'Social',
-      rejectionReason: 'Incomplete venue safety documentation',
-      views: 89,
-    },
-    {
-      id: '4',
-      title: 'Career Fair 2025',
-      submittedDate: 'Oct 28, 2025',
-      status: 'approved',
-      attendees: 234,
-      category: 'Career',
-      views: 2180,
     },
   ];
 
@@ -283,7 +253,7 @@ export function OrganiserHomePage() {
       <section className="py-12 bg-background -mt-8 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
+            {statsDisplay.map((stat, index) => (
               <div key={stat.title}>
                 <Card className="p-6 hover:shadow-lg transition-shadow border-2">
                   <div className={`w-14 h-14 bg-gradient-to-br ${stat.gradient} rounded-xl flex items-center justify-center mb-4 shadow-lg`}>
@@ -510,7 +480,11 @@ export function OrganiserHomePage() {
                                 Edit
                               </Button>
                             </Link>
-                            <Button size="sm" className="bg-[#E21833] hover:bg-[#C11528] hover:scale-105 active:scale-95 transition-transform">
+                            <Button 
+                              size="sm" 
+                              className="bg-[#E21833] hover:bg-[#C11528] hover:scale-105 active:scale-95 transition-transform"
+                              onClick={() => handlePublishDraft(event.id)}
+                            >
                               <Zap className="w-4 h-4 mr-1" />
                               Publish
                             </Button>

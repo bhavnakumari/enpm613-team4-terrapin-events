@@ -226,6 +226,26 @@ async def get_category_stats(db: AsyncIOMotorDatabase = Depends(get_db)):
     return stats
 
 
+@router.get("/my-events")
+async def get_my_events(
+    user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get all events created by the current organizer.
+    Returns events with all statuses (draft, pending_approval, approved, rejected, cancelled).
+    """
+    events = []
+    cursor = db.events.find(
+        {"organizer_id": user["directory_id"]}
+    ).sort("created_at", -1)
+    
+    async for event_doc in cursor:
+        events.append(Event(**event_doc).model_dump())
+    
+    return events
+
+
 @router.get("/admin/pending-events")
 async def get_pending_events(
     user: dict = Depends(require_admin),
@@ -368,16 +388,44 @@ async def update_event(
             detail="No fields to update"
         )
     
-    # Check if trying to update status (only admins can do this)
-    if "status" in update_fields:
-        if user["role"] != "admin":
+    # Validate time constraints if being updated
+    if "end_time" in update_fields and "start_time" not in update_fields:
+        # Check against existing start_time
+        if update_fields["end_time"] <= event_doc["start_time"]:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can change event status"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Event end time must be after start time"
             )
-        # Track which admin approved/rejected the event
-        if update_fields["status"] in ["approved", "rejected"]:
-            update_fields["approved_by_admin_id"] = user["directory_id"]
+    
+    if "start_time" in update_fields and "end_time" in update_fields:
+        if update_fields["end_time"] <= update_fields["start_time"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Event end time must be after start time"
+            )
+    
+    # Check if trying to update status
+    if "status" in update_fields:
+        current_status = event_doc["status"]
+        new_status = update_fields["status"]
+        
+        # Organizers can change draft → pending_approval (submitting for review)
+        if user["role"] == "organizer":
+            if current_status == "draft" and new_status == "pending_approval":
+                # Allow organizers to submit their drafts
+                pass
+            else:
+                # Organizers cannot change any other status
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only admins can change event status"
+                )
+        
+        # Admins can change any status
+        if user["role"] == "admin":
+            # Track which admin approved/rejected the event
+            if new_status in ["approved", "rejected"]:
+                update_fields["approved_by_admin_id"] = user["directory_id"]
     
     # Handle capacity decrease - move excess registered users to waitlist
     if "capacity" in update_fields:
@@ -548,3 +596,119 @@ async def delete_event(
         )
     
     return None
+
+
+@router.get("/admin/stats")
+async def get_admin_stats(
+    user: dict = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Get comprehensive admin statistics.
+    
+    Returns:
+        - Total events count
+        - Events by status (pending, approved, rejected, draft)
+        - Total registrations
+        - Active users count
+        - Recent activity (recent approvals/rejections)
+        - Upcoming approved events with registration stats
+    """
+    # Get total events and counts by status
+    total_events = await db.events.count_documents({})
+    pending_count = await db.events.count_documents({"status": "pending_approval"})
+    approved_count = await db.events.count_documents({"status": "approved"})
+    rejected_count = await db.events.count_documents({"status": "rejected"})
+    draft_count = await db.events.count_documents({"status": "draft"})
+    
+    # Get total registrations
+    total_registrations = await db.registrations.count_documents({})
+    
+    # Get active users (users who have registered for at least one event)
+    active_users_pipeline = [
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "count"}
+    ]
+    active_users_result = await db.registrations.aggregate(active_users_pipeline).to_list(1)
+    active_users = active_users_result[0]["count"] if active_users_result else 0
+    
+    # Get recent activity (last 10 approved/rejected events)
+    recent_activity_pipeline = [
+        {
+            "$match": {
+                "status": {"$in": ["approved", "rejected"]},
+                "updated_at": {"$exists": True}
+            }
+        },
+        {"$sort": {"updated_at": -1}},
+        {"$limit": 10},
+        {
+            "$project": {
+                "_id": 0,
+                "event_id": 1,
+                "title": 1,
+                "status": 1,
+                "updated_at": 1
+            }
+        }
+    ]
+    recent_activity = await db.events.aggregate(recent_activity_pipeline).to_list(10)
+    
+    # Get upcoming approved events with registration stats
+    # Get all approved events first, then filter in Python for better debugging
+    all_approved_pipeline = [
+        {
+            "$match": {
+                "status": "approved"
+            }
+        },
+        {"$sort": {"start_time": 1}},
+        {
+            "$lookup": {
+                "from": "registrations",
+                "localField": "event_id",
+                "foreignField": "event_id",
+                "as": "registrations"
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "event_id": 1,
+                "title": 1,
+                "start_time": 1,
+                "capacity": 1,
+                "registrations_count": {"$size": "$registrations"}
+            }
+        }
+    ]
+    all_approved_events = await db.events.aggregate(all_approved_pipeline).to_list(None)
+    
+    # Filter for upcoming events in Python (more reliable than MongoDB string comparison)
+    current_time = datetime.utcnow()
+    upcoming_events = []
+    for event in all_approved_events:
+        try:
+            # Parse the start_time string to datetime for comparison
+            event_start = datetime.fromisoformat(event['start_time'].replace('Z', '+00:00'))
+            if event_start > current_time:
+                upcoming_events.append(event)
+                if len(upcoming_events) >= 10:
+                    break
+        except Exception as e:
+            logger.warning(f"Failed to parse start_time for event {event.get('event_id')}: {e}")
+            continue
+    
+    logger.info(f"Found {len(upcoming_events)} upcoming events out of {len(all_approved_events)} approved events")
+    
+    return {
+        "total_events": total_events,
+        "pending_approval": pending_count,
+        "approved": approved_count,
+        "rejected": rejected_count,
+        "draft": draft_count,
+        "total_registrations": total_registrations,
+        "active_users": active_users,
+        "recent_activity": recent_activity,
+        "upcoming_events": upcoming_events
+    }

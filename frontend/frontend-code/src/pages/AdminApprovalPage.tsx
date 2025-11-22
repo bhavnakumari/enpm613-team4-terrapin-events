@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Check, X, Clock, Eye, AlertTriangle, Search, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, X, Clock, Eye, AlertTriangle, Search, Filter, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -16,6 +16,9 @@ import {
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { eventsService } from '../services/events.service';
+import { toast } from 'sonner';
+import type { Event } from '../types/event';
 
 interface PendingEvent {
   id: string;
@@ -33,54 +36,10 @@ interface PendingEvent {
   price?: number;
 }
 
-const mockEvents: PendingEvent[] = [
-  {
-    id: '1',
-    title: 'AI & Machine Learning Workshop',
-    organizer: 'Computer Science Club',
-    category: 'Workshop',
-    date: 'December 20, 2025',
-    time: '2:00 PM - 5:00 PM',
-    location: 'Computer Lab 301',
-    description: 'Hands-on workshop covering the fundamentals of AI and machine learning with practical exercises.',
-    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400',
-    submittedAt: '2 hours ago',
-    status: 'pending',
-    maxAttendees: 30,
-  },
-  {
-    id: '2',
-    title: 'Spring Festival 2026',
-    organizer: 'Student Council',
-    category: 'Social',
-    date: 'March 15, 2026',
-    time: '6:00 PM - 10:00 PM',
-    location: 'Grand Plaza',
-    description: 'Annual spring festival featuring food vendors, live music, and carnival games.',
-    imageUrl: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=400',
-    submittedAt: '5 hours ago',
-    status: 'pending',
-    maxAttendees: 500,
-    price: 5,
-  },
-  {
-    id: '3',
-    title: 'Career Fair: Tech Companies',
-    organizer: 'Career Services',
-    category: 'Career',
-    date: 'January 10, 2026',
-    time: '10:00 AM - 4:00 PM',
-    location: 'Exhibition Center',
-    description: 'Meet recruiters from top tech companies. Bring your resume and dress professionally.',
-    imageUrl: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=400',
-    submittedAt: '1 day ago',
-    status: 'pending',
-    maxAttendees: 300,
-  },
-];
-
 export function AdminApprovalPage() {
-  const [events, setEvents] = useState<PendingEvent[]>(mockEvents);
+  const [events, setEvents] = useState<PendingEvent[]>([]);
+  const [allEventsForStats, setAllEventsForStats] = useState<PendingEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<PendingEvent | null>(null);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');
@@ -88,20 +47,81 @@ export function AdminApprovalPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
 
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch all events for stats (only once)
+        const allEventsData = await eventsService.getAllEvents();
+        const formattedAllEvents: PendingEvent[] = allEventsData.map(e => ({
+          id: e.event_id,
+          title: e.title,
+          organizer: e.organizer_email,
+          category: (e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Event'),
+          date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          time: e.end_time 
+            ? `${new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${new Date(e.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+            : new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          location: e.location,
+          description: e.description || 'No description provided',
+          imageUrl: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400',
+          submittedAt: new Date(e.created_at).toLocaleDateString(),
+          status: e.status === 'pending_approval' ? 'pending' : e.status as 'pending' | 'approved' | 'rejected',
+          maxAttendees: e.capacity,
+          price: e.is_paid ? e.price : undefined,
+        }));
+        
+        setAllEventsForStats(formattedAllEvents);
+        
+        // Filter events for current tab
+        let filteredByStatus: PendingEvent[];
+        if (statusFilter === 'all') {
+          filteredByStatus = formattedAllEvents;
+        } else {
+          filteredByStatus = formattedAllEvents.filter(e => e.status === statusFilter);
+        }
+        
+        setEvents(filteredByStatus);
+      } catch (err) {
+        console.error('Failed to fetch events:', err);
+        toast.error('Failed to load events');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchEvents();
+  }, [statusFilter]);
+
   const handleReview = (event: PendingEvent, action: 'approve' | 'reject') => {
     setSelectedEvent(event);
     setReviewAction(action);
     setIsReviewDialogOpen(true);
   };
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!selectedEvent) return;
 
-    setEvents(events.map(event => 
-      event.id === selectedEvent.id
-        ? { ...event, status: reviewAction === 'approve' ? 'approved' : 'rejected' }
-        : event
-    ));
+    try {
+      if (reviewAction === 'approve') {
+        await eventsService.approveEvent(selectedEvent.id);
+        toast.success(`Event "${selectedEvent.title}" approved successfully!`);
+      } else {
+        await eventsService.rejectEvent(selectedEvent.id);
+        toast.success(`Event "${selectedEvent.title}" rejected`);
+      }
+      
+      // Update local state
+      setEvents(events.map(event => 
+        event.id === selectedEvent.id
+          ? { ...event, status: reviewAction === 'approve' ? 'approved' : 'rejected' }
+          : event
+      ));
+    } catch (err) {
+      console.error('Failed to review event:', err);
+      toast.error('Failed to process review. Please try again.');
+    }
 
     setIsReviewDialogOpen(false);
     setReviewNotes('');
@@ -116,9 +136,9 @@ export function AdminApprovalPage() {
   });
 
   const stats = {
-    pending: events.filter(e => e.status === 'pending').length,
-    approved: events.filter(e => e.status === 'approved').length,
-    rejected: events.filter(e => e.status === 'rejected').length,
+    pending: allEventsForStats.filter(e => e.status === 'pending').length,
+    approved: allEventsForStats.filter(e => e.status === 'approved').length,
+    rejected: allEventsForStats.filter(e => e.status === 'rejected').length,
   };
 
   return (
@@ -202,7 +222,12 @@ export function AdminApprovalPage() {
           </TabsList>
 
           <TabsContent value={statusFilter} className="space-y-4">
-            {filteredEvents.length === 0 ? (
+            {isLoading ? (
+              <Card className="p-12 text-center">
+                <Loader2 className="w-12 h-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+                <h3 className="mb-2">Loading events...</h3>
+              </Card>
+            ) : filteredEvents.length === 0 ? (
               <Card className="p-12 text-center">
                 <AlertTriangle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="mb-2">No events found</h3>

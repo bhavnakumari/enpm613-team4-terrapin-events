@@ -38,9 +38,8 @@ export const eventsService = {
     return allEvents.filter(event => event.status === status);
   },
 
-  async getMyEvents(organizerId: string): Promise<Event[]> {
-    const allEvents = await this.getAllEvents();
-    return allEvents.filter(event => event.organizer_id === organizerId);
+  async getMyEvents(): Promise<Event[]> {
+    return apiClient.get<Event[]>('/api/events/my-events');
   },
 
   async getEventsByCategory(category: Event['category']): Promise<Event[]> {
@@ -76,5 +75,9 @@ export const eventsService = {
   // Admin-specific endpoints
   async getPendingEvents(): Promise<any[]> {
     return apiClient.get<any[]>('/api/events/admin/pending-events');
+  },
+
+  async getAdminStats(): Promise<any> {
+    return apiClient.get<any>('/api/events/admin/stats');
   },
 };

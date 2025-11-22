@@ -11,8 +11,8 @@ export const registrationsService = {
   /**
    * Register for an event
    */
-  async registerForEvent(eventId: string): Promise<any> {
-    return apiClient.post<any>(`/api/events/${eventId}/register`);
+  async registerForEvent(eventId: string, payment?: any): Promise<any> {
+    return apiClient.post<any>(`/api/events/${eventId}/register`, payment);
   },
 
   /**
