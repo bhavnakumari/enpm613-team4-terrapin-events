@@ -5,6 +5,11 @@ Users can register for events.
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
+from typing import Optional
+from pydantic import BaseModel, Field
+from fastapi.responses import HTMLResponse
+from app.utils.ticket import generate_ticket_qr_data, format_event_datetime
+from app.utils.email import load_template  # we already had this loader for email templates
 import secrets
 
 from app.database import get_db
@@ -15,23 +20,50 @@ from app.utils.email import (
     send_cancellation_email,
     send_waitlist_promotion_email,
 )
-from app.api.events import get_current_user
+from app.api.auth import get_current_user
 from fastapi.security import HTTPAuthorizationCredentials  # optional, may be unused
 
 router = APIRouter(prefix="/api/events", tags=["Registrations"])
 
+class PaymentRequest(BaseModel):
+    card_number: str = Field(..., min_length=12, max_length=19)
+    expiry_month: int = Field(..., ge=1, le=12)
+    expiry_year: int = Field(..., ge=2024)
+    cvc: str = Field(..., min_length=3, max_length=4)
+
+
+def _process_mock_payment(payment: PaymentRequest, amount: float) -> bool:
+    """
+    Fake payment processor: only accepts a single magic test card.
+
+    Magic card (for now):
+      - Number: 4242 4242 4242 4242
+      - Exp: 12 / 2030
+      - CVC: 123
+    """
+    return (
+        payment.card_number.replace(" ", "") == "4242424242424242"
+        and payment.expiry_month == 12
+        and payment.expiry_year == 2030
+        and payment.cvc == "123"
+    )
 
 @router.post("/{event_id}/register", response_model=Registration, status_code=status.HTTP_201_CREATED)
 async def register_for_event(
     event_id: str,
     background_tasks: BackgroundTasks,
+    payment: Optional[PaymentRequest] = None,
     user: dict = Depends(get_current_user),
-    db: AsyncIOMotorDatabase = Depends(get_db)
+    db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
     Register the current user for an event.
-    Handles capacity, waitlist, and registration window checks.
-    Also triggers a confirmation email in the background.
+    Handles:
+      - event approval and registration window
+      - duplicate registrations
+      - capacity & waitlist
+      - mock payment for paid events
+      - confirmation email
     """
 
     # 1. Check if event exists
@@ -39,7 +71,7 @@ async def register_for_event(
     if not event_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Event with ID '{event_id}' not found"
+            detail=f"Event with ID '{event_id}' not found",
         )
 
     event = Event(**event_doc)
@@ -48,7 +80,7 @@ async def register_for_event(
     if event.status != "approved":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot register for events that are not approved"
+            detail="Cannot register for events that are not approved",
         )
 
     # 3. Check registration window (timezone-safe)
@@ -59,89 +91,109 @@ async def register_for_event(
 
     if open_time and open_time.tzinfo is None:
         open_time = open_time.replace(tzinfo=timezone.utc)
-
     if close_time and close_time.tzinfo is None:
         close_time = close_time.replace(tzinfo=timezone.utc)
 
     if open_time and current_time < open_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration has not opened yet"
+            detail="Registration has not opened yet",
         )
 
     if close_time and current_time > close_time:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration has closed"
+            detail="Registration has closed",
         )
 
-    # 4. Generate unique registration ID first
-    registration_id = f"reg_{secrets.token_hex(6)}"
-
-    # 5. Atomically insert registration with capacity check using findAndModify pattern
-    # This prevents race conditions by doing count + insert in single atomic operation
-    
-    # First, check if user already registered
-    existing_registration = await db.registrations.find_one({
-        "event_id": event_id,
-        "user_id": user["directory_id"],
-        "status": {"$in": ["registered", "waitlisted"]}
-    })
+    # 4. Check if user already registered (registered or waitlisted)
+    existing_registration = await db.registrations.find_one(
+        {
+            "event_id": event_id,
+            "user_id": user["directory_id"],
+            "status": {"$in": ["registered", "waitlisted"]},
+        }
+    )
 
     if existing_registration:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You are already registered for this event"
+            detail="You are already registered for this event",
         )
 
-    # Optimized: Use a single aggregation query to count AND reserve spot atomically
-    # This prevents N+1 query pattern by getting counts in one operation
-    count_pipeline = [
-        {"$match": {"event_id": event_id, "status": {"$in": ["registered", "waitlisted"]}}},
-        {"$group": {
-            "_id": "$status",
-            "count": {"$sum": 1}
-        }}
-    ]
-    
-    counts = await db.registrations.aggregate(count_pipeline).to_list(None)
-    count_map = {item["_id"]: item["count"] for item in counts}
-    registered_count = count_map.get("registered", 0)
-    waitlisted_count = count_map.get("waitlisted", 0)
+    # 5. Count current confirmed registrations
+    registered_count = await db.registrations.count_documents(
+        {"event_id": event_id, "status": "registered"}
+    )
 
-    # Determine status and position based on capacity
+    # 6. Decide registration status and waitlist position
     registration_status = RegistrationStatus.REGISTERED
-    waitlist_position = None
+    waitlist_position: Optional[int] = None
 
     if registered_count >= event.capacity:
         registration_status = RegistrationStatus.WAITLISTED
+        waitlisted_count = await db.registrations.count_documents(
+            {"event_id": event_id, "status": "waitlisted"}
+        )
         waitlist_position = waitlisted_count + 1
 
-    # Build Registration model
+    # 7. Initialize payment fields to avoid UnboundLocalError
+    payment_status: str = "not_required"
+    amount_paid: Optional[float] = None
+
+    # 8. Payment logic for paid events (only if user is actually getting a seat)
+    is_paid_event = getattr(event, "is_paid", False)
+    price = getattr(event, "price", None)
+
+    if (
+        is_paid_event
+        and price is not None
+        and price > 0
+        and registration_status == RegistrationStatus.REGISTERED
+    ):
+        # Paid event and user is confirmed → require payment
+        if payment is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment required for this event. Please provide card details.",
+            )
+
+        if not _process_mock_payment(payment, price):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Payment failed. Use the test card: "
+                    "4242 4242 4242 4242, exp 12/2030, CVC 123."
+                ),
+            )
+
+        payment_status = "paid"
+        amount_paid = price
+    else:
+        # Free events or waitlisted → no charge now
+        payment_status = "not_required"
+        amount_paid = None
+
+    # 9. Generate unique registration ID
+    registration_id = f"reg_{secrets.token_hex(6)}"
+
+    # 10. Build Registration model (include payment fields)
     registration = Registration(
         registration_id=registration_id,
         event_id=event_id,
         user_id=user["directory_id"],
-        user_email=user["email"],
+        user_email=user["email"],  # ✅ ADD THIS LINE
         status=registration_status,
         waitlist_position=waitlist_position,
         registered_at=current_time,
+        payment_status=payment_status,
+        amount_paid=amount_paid,
     )
 
-    # Try to insert - if duplicate user registration happens due to race condition,
-    # MongoDB will enforce uniqueness if we have proper index
-    try:
-        await db.registrations.insert_one(registration.model_dump())
-    except Exception as e:
-        # If insert fails due to duplicate, check if it's a race condition
-        if "duplicate" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration already exists"
-            )
-        raise
+    # 11. Insert into database
+    await db.registrations.insert_one(registration.model_dump())
 
-    # 10. Send confirmation / waitlist email in the background
+    # 12. Send confirmation / waitlist email in the background
     participant_email = user.get("email")
     if participant_email:
         background_tasks.add_task(
@@ -241,10 +293,10 @@ async def get_my_registrations_with_events(
 
 @router.delete("/{event_id}/register", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_registration(
-        event_id: str,
-        background_tasks: BackgroundTasks,
-        user: dict = Depends(get_current_user),
-        db: AsyncIOMotorDatabase = Depends(get_db)
+    event_id: str,
+    background_tasks: BackgroundTasks,              # ✅ plain injection
+    user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
     Cancel the current user's registration for an event.
@@ -346,3 +398,62 @@ async def cancel_registration(
         )
 
     return None
+
+@router.get("/{event_id}/ticket", response_class=HTMLResponse)
+async def get_ticket_for_event(
+    event_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Return an HTML ticket for the current user's registration for a given event.
+    Only works if the user is registered (not cancelled).
+    """
+
+    # 1. Find the user's active registration for this event
+    registration_doc = await db.registrations.find_one({
+        "event_id": event_id,
+        "user_id": user["directory_id"],
+        "status": {"$in": ["registered", "waitlisted"]},  # or only ["registered"] if you prefer
+    })
+
+    if not registration_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active registration found for this event",
+        )
+
+    registration = Registration(**registration_doc)
+
+    # 2. Fetch event details
+    event_doc = await db.events.find_one({"event_id": event_id})
+    if not event_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    event = Event(**event_doc)
+
+    # 3. Generate QR image data (base64)
+    qr_image_data = generate_ticket_qr_data(registration, event)
+
+    # 4. Format datetime
+    event_datetime_str = format_event_datetime(event.start_time)
+
+    # 5. Load HTML template and fill placeholders
+    template_html = load_template("ticket.html")
+
+    user_email = registration.user_email  # comes from your Registration model
+
+    html_content = (
+        template_html
+        .replace("{{event_title}}", event.title)
+        .replace("{{event_datetime}}", event_datetime_str)
+        .replace("{{event_location}}", event.location or "TBA")
+        .replace("{{user_email}}", user_email)
+        .replace("{{registration_id}}", registration.registration_id)
+        .replace("{{qr_image_data}}", qr_image_data)
+    )
+
+    return HTMLResponse(content=html_content, status_code=200)

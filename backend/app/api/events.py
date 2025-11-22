@@ -111,7 +111,10 @@ async def create_event(
         requested_admin_email=requested_admin_email,
         approved_by_admin_id=None,
         created_at=current_time,
-        updated_at=current_time
+        updated_at=current_time,
+        is_paid=event_data.is_paid,
+        price=event_data.price,
+        currency=event_data.currency
     )
     
     # Insert into database

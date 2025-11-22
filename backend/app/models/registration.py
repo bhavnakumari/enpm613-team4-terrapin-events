@@ -13,13 +13,25 @@ class RegistrationStatus(str, Enum):
     CANCELLED = "cancelled"
 
 class Registration(BaseModel):
-    registration_id: str = Field(...)
-    event_id: str = Field(...)
-    user_id: str = Field(...)
-    user_email: EmailStr = Field(...)  # 👈 required
-    status: RegistrationStatus = Field(default=RegistrationStatus.REGISTERED)
-    waitlist_position: Optional[int] = None
-    registered_at: datetime = Field(default_factory=datetime.utcnow)
+    registration_id: str
+    event_id: str
+    user_id: str
+    user_email: EmailStr         # <-- REQUIRED
+    status: RegistrationStatus
+    waitlist_position: Optional[int]
+    registered_at: datetime
+
+    payment_status: Optional[str]
+    amount_paid: Optional[float]
+    # 👇 NEW PAYMENT FIELDS
+    payment_status: Optional[str] = Field(
+        default=None,
+        description="paid / not_required / failed"
+    )
+    amount_paid: Optional[float] = Field(
+        default=None,
+        description="Amount charged to the user (if paid event)"
+    )
 
     class Config:
         json_schema_extra = {
