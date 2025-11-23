@@ -5,6 +5,8 @@ import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Badge } from '../components/ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import { config } from '../config/env';
+import { useState } from 'react';
 
 export function RegistrationConfirmationPage() {
   const location = useLocation();
@@ -20,6 +22,99 @@ export function RegistrationConfirmationPage() {
 
   const isPaidEvent = event.price && event.price > 0;
   const isWaitlisted = regData.status === 'waitlisted';
+  const [showShareOptions, setShowShareOptions] = useState(false);
+
+  // Helpers to resolve IDs/URLs
+  const getEventId = (): string | null => {
+    const eventId: string | undefined =
+      event.event_id || event.id || event.eventId;
+
+    if (!eventId) {
+      console.error('No event_id found on event:', event);
+      return null;
+    }
+
+    return eventId;
+  };
+
+  const getTicketUrl = (): string | null => {
+    const eventId = getEventId();
+    if (!eventId) {
+      alert('Unable to determine event ID for ticket actions.');
+      return null;
+    }
+    return `${config.apiUrl}/api/events/${eventId}/ticket`;
+  };
+
+  const getEventUrl = (): string | null => {
+    const eventId = getEventId();
+    if (!eventId) {
+      alert('Unable to determine event ID for sharing.');
+      return null;
+    }
+    return `${window.location.origin}/events/${eventId}`;
+  };
+
+  const handleDownloadTicket = async () => {
+    const url = getTicketUrl();
+    if (!url) return;
+
+    const token = localStorage.getItem('access_token');
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {},
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error('Ticket fetch failed:', res.status, text);
+        alert(
+          'Failed to load ticket. Please make sure you are logged in and registered for this event.'
+        );
+        return;
+      }
+
+      const html = await res.text();
+      const ticketWindow = window.open('', '_blank');
+
+      if (ticketWindow) {
+        ticketWindow.document.open();
+        ticketWindow.document.write(html);
+        ticketWindow.document.close();
+      } else {
+        const blob = new Blob([html], { type: 'text/html' });
+        const blobUrl = window.URL.createObjectURL(blob);
+        window.location.href = blobUrl;
+      }
+    } catch (error) {
+      console.error('Error downloading ticket:', error);
+      alert('Error downloading ticket');
+    }
+  };
+
+  const handleEmailTicket = () => {
+    const ticketUrl = getTicketUrl();
+    if (!ticketUrl) return;
+
+    const to = user?.email ?? '';
+    const subject = encodeURIComponent(`Your ticket for ${event.title}`);
+    const body = encodeURIComponent(
+      `Hi,\n\nHere is your ticket link for "${event.title}":\n\n${ticketUrl}\n\nEvent Date: ${event.formattedDate}\nTime: ${event.formattedTime}\nLocation: ${event.location}\n\nThank you!`
+    );
+
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  };
+
+  const handleShareButtonClick = () => {
+    setShowShareOptions(prev => !prev);
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 py-12">
@@ -128,20 +223,110 @@ export function RegistrationConfirmationPage() {
         </Card>
 
         {/* Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Button variant="outline" className="gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleDownloadTicket}
+            disabled={isWaitlisted}
+          >
             <Download className="w-4 h-4" />
             Download Ticket
           </Button>
-          <Button variant="outline" className="gap-2">
+
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleEmailTicket}
+            disabled={isWaitlisted}
+          >
             <Mail className="w-4 h-4" />
             Email Ticket
           </Button>
-          <Button variant="outline" className="gap-2">
+
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleShareButtonClick}
+          >
             <Share2 className="w-4 h-4" />
             Share Event
           </Button>
         </div>
+
+                {showShareOptions && (
+          <Card className="p-4 mb-8">
+            {(() => {
+              const eventUrl = getEventUrl() || window.location.origin;
+
+              const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                `Join me at "${event.title}"!`
+              )}&url=${encodeURIComponent(eventUrl)}`;
+
+              const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+                eventUrl
+              )}`;
+
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(
+                `Check out this event: "${event.title}" - ${eventUrl}`
+              )}`;
+
+              const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                eventUrl
+              )}`;
+
+              return (
+                <>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Share this event with your friends:
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={twitterUrl} target="_blank" rel="noopener noreferrer">
+                        X / Twitter
+                      </a>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={linkedinUrl} target="_blank" rel="noopener noreferrer">
+                        LinkedIn
+                      </a>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                        WhatsApp
+                      </a>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={facebookUrl} target="_blank" rel="noopener noreferrer">
+                        Facebook
+                      </a>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const urlToCopy = eventUrl;
+                        if (navigator.clipboard) {
+                          try {
+                            await navigator.clipboard.writeText(urlToCopy);
+                            alert('Event link copied to clipboard!');
+                          } catch (err) {
+                            console.error('Clipboard write failed:', err);
+                            alert(urlToCopy);
+                          }
+                        } else {
+                          alert(urlToCopy);
+                        }
+                      }}
+                    >
+                      Copy Link
+                    </Button>
+                  </div>
+                </>
+              );
+            })()}
+          </Card>
+        )}
 
         {/* Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
