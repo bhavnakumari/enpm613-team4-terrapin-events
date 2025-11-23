@@ -47,20 +47,6 @@ class Event(BaseModel):
     approved_by_admin_id: Optional[str] = Field(None, description="Directory ID of admin who approved/rejected the event")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    # 👇 NEW PAYMENT FIELDS
-    is_paid: bool = Field(default=False, description="Whether this event requires payment")
-    price: Optional[float] = Field(
-        default=None,
-        ge=0,
-        description="Ticket price if this is a paid event",
-    )
-    currency: Optional[str] = Field(default="USD", description="Currency code for price")
-
-    status: EventStatus = Field(default=EventStatus.DRAFT)
-    organizer_id: str = Field(..., description="Directory ID of the organizer")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     class Config:
         json_schema_extra = {
@@ -86,9 +72,3 @@ class Event(BaseModel):
                 "updated_at": "2025-11-14T10:00:00"
             }
         }
-
-class PaymentRequest(BaseModel):
-    card_number: str = Field(..., min_length=12, max_length=19)
-    expiry_month: int = Field(..., ge=1, le=12)
-    expiry_year: int = Field(..., ge=2024)
-    cvc: str = Field(..., min_length=3, max_length=4)

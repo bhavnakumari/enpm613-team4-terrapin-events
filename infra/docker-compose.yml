@@ -16,12 +16,11 @@ services:
   backend:
     build: ../backend
     container_name: cems_backend
-    env_file: ../backend/.env
+    env_file: ../.env
     ports:
       - "8000:8000"
     volumes:
       - ../backend/app:/app/app
-      - ../backend/.env:/app/.env
     depends_on:
       - mongo
     networks:
@@ -34,7 +33,7 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     ports:
-      - "3000:80"
+      - "5173:80"
     depends_on:
       - backend
     networks:

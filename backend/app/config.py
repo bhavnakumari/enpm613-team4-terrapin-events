@@ -23,14 +23,9 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"]
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     BCRYPT_ROUNDS: int = 12
-    
-    # Request limits (to prevent abuse)
-    MAX_REGISTRATION_BATCH_SIZE: int = 10
-    MAX_EVENT_DESCRIPTION_LENGTH: int = 5000
-    MAX_UPLOAD_SIZE_MB: int = 10
 
     # Email / SMTP settings
     SMTP_HOST: str | None = None

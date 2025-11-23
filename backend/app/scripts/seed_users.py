@@ -1,3 +1,10 @@
+"""
+Seed script to populate test users in the database.
+Run this once to create participant, organizer, and admin users.
+
+Usage:
+    python -m app.scripts.seed_users
+"""
 import asyncio
 import sys
 from pathlib import Path
@@ -73,20 +80,41 @@ async def seed_users():
     
     # Clear existing test users (optional - comment out if you want to keep them)
     await db.users.delete_many({
-        "directory_id": {"$in": ["bhavna", "abhigna", "teja", "vineet", "organiser", "admin"]}
+        "directory_id": {"$in": ["118123456", "118234567", "118345678"]}
     })
     print("Cleared existing test users")
     
     # Insert test users
     result = await db.users.insert_many(test_users)
-    print(f"Inserted {len(result.inserted_ids)} test users")
+    print(f"Created {len(result.inserted_ids)} test users")
     
-    # Print created users
-    for user in test_users:
-        print(f"  ✓ {user['directory_id']} ({user['role']}) - {user['email']}")
+    # Display credentials
+    print("\n" + "="*60)
+    print("TEST USER CREDENTIALS")
+    print("="*60)
+    print("\n1. PARTICIPANT")
+    print("   Directory ID: 118123456")
+    print("   Password: participant123")
+    print("   Email: appsbekar@gmail.com")
     
-    print("\nSeeding completed successfully!")
+    print("\n2. ORGANIZER")
+    print("   Directory ID: 118234567")
+    print("   Password: organizer123")
+    print("   Email: organizer@umd.edu")
+    
+    print("\n3. ADMIN")
+    print("   Directory ID: 118345678")
+    print("   Password: admin123")
+    print("   Email: admin@umd.edu")
+    
+    print("\n" + "="*60)
+    print("You can now login with any of these credentials!")
+    print("="*60 + "\n")
+    
+    # Close connection
     client.close()
-    
+    print("Database connection closed")
+
+
 if __name__ == "__main__":
     asyncio.run(seed_users())

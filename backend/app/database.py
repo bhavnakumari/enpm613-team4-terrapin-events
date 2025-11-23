@@ -40,43 +40,27 @@ class DatabaseManager:
             logger.info("MongoDB connection closed")
 
     async def _create_indexes(self):
-        """Create optimized database indexes for performance and data integrity."""
         try:
             # User indexes
             await self.db.users.create_index("directory_id", unique=True)
             await self.db.users.create_index("email", unique=True, sparse=True)
             
-            # Event indexes - compound for better query performance
+            # Event indexes
             await self.db.events.create_index("event_id", unique=True)
-            await self.db.events.create_index([("status", 1), ("start_time", 1)])
-            await self.db.events.create_index([("organizer_id", 1), ("status", 1)])
-            await self.db.events.create_index([("category", 1), ("status", 1)])
+            await self.db.events.create_index("organizer_id")
+            await self.db.events.create_index("status")
+            await self.db.events.create_index("start_time")
             
-            # Registration indexes - optimized for common queries
+            # Registration indexes
             await self.db.registrations.create_index("registration_id", unique=True)
-            await self.db.registrations.create_index(
-                [("event_id", 1), ("user_id", 1), ("status", 1)],
-                name="event_user_status_idx"
-            )
-            await self.db.registrations.create_index(
-                [("event_id", 1), ("status", 1)],
-                name="event_status_idx"
-            )
-            await self.db.registrations.create_index(
-                [("user_id", 1), ("registered_at", -1)],
-                name="user_registrations_idx"
-            )
-            # Unique constraint for active registrations (prevents double-booking)
-            await self.db.registrations.create_index(
-                [("event_id", 1), ("user_id", 1)],
-                unique=True,
-                partialFilterExpression={"status": {"$in": ["registered", "waitlisted"]}},
-                name="unique_active_registration"
-            )
+            await self.db.registrations.create_index("event_id")
+            await self.db.registrations.create_index("user_id")
+            await self.db.registrations.create_index([("event_id", 1), ("user_id", 1)])
+            await self.db.registrations.create_index("status")
             
             logger.info("Database indexes created successfully")
         except Exception as e:
-            logger.warning(f"Error creating indexes (may already exist): {e}")
+            logger.warning(f"Error creating indexes: {e}")
 
     def get_database(self) -> AsyncIOMotorDatabase:
         if self.db is None:
