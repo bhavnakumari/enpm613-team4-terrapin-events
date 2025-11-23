@@ -25,11 +25,11 @@ export const eventsService = {
   },
 
   async approveEvent(eventId: string): Promise<Event> {
-    return apiClient.post<Event>(`/api/events/${eventId}/approve`);
+    return apiClient.patch<Event>(`/api/events/${eventId}`, { status: 'approved' });
   },
 
   async rejectEvent(eventId: string): Promise<Event> {
-    return apiClient.post<Event>(`/api/events/${eventId}/reject`);
+    return apiClient.patch<Event>(`/api/events/${eventId}`, { status: 'rejected' });
   },
 
 
