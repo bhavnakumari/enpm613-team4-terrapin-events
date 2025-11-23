@@ -1,9 +1,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json ./
+COPY frontend-code/package.json ./
 RUN npm install
-COPY . .
-RUN npm run build || true
+COPY frontend-code/ .
+RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
