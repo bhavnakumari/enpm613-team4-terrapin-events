@@ -199,14 +199,6 @@ export function EventsCatalogPage() {
           className="flex items-center justify-between mb-8"
         >
           <h1 className="text-[#E21833] dark:text-[#E21833]">Upcoming Events</h1>
-          <Link to="/create-event">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button className="gap-2 bg-[#E21833] hover:bg-[#C11528]">
-                <Plus className="w-5 h-5" />
-                Create Event
-              </Button>
-            </motion.div>
-          </Link>
         </motion.div>
 
         {/* Search and Stats */}

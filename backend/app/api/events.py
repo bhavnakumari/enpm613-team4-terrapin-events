@@ -684,14 +684,34 @@ async def get_admin_stats(
     ]
     all_approved_events = await db.events.aggregate(all_approved_pipeline).to_list(None)
     
+    logger.info(f"Total approved events found: {len(all_approved_events)}")
+    
     # Filter for upcoming events in Python (more reliable than MongoDB string comparison)
     current_time = datetime.utcnow()
     upcoming_events = []
     for event in all_approved_events:
         try:
-            # Parse the start_time string to datetime for comparison
-            event_start = datetime.fromisoformat(event['start_time'].replace('Z', '+00:00'))
+            start_time_value = event['start_time']
+            
+            # Handle different start_time formats
+            if isinstance(start_time_value, datetime):
+                # Already a datetime object
+                event_start = start_time_value
+            elif isinstance(start_time_value, (int, float)):
+                # Unix timestamp
+                event_start = datetime.fromtimestamp(start_time_value)
+            elif isinstance(start_time_value, str):
+                # ISO format string
+                event_start = datetime.fromisoformat(start_time_value.replace('Z', '+00:00'))
+            else:
+                logger.warning(f"Unknown start_time format for event {event.get('event_id')}: {type(start_time_value)}")
+                continue
+            
+            logger.debug(f"Event {event.get('event_id')}: start_time={start_time_value}, parsed={event_start}, current={current_time}, is_future={event_start > current_time}")
+            
             if event_start > current_time:
+                # Convert datetime to ISO string for JSON serialization
+                event['start_time'] = event_start.isoformat()
                 upcoming_events.append(event)
                 if len(upcoming_events) >= 10:
                     break
@@ -700,6 +720,7 @@ async def get_admin_stats(
             continue
     
     logger.info(f"Found {len(upcoming_events)} upcoming events out of {len(all_approved_events)} approved events")
+    logger.info(f"Upcoming events sample: {upcoming_events[:2] if upcoming_events else 'None'}")
     
     return {
         "total_events": total_events,
