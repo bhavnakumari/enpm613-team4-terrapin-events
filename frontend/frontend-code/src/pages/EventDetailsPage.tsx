@@ -34,75 +34,7 @@ import { toast } from 'sonner';
 import type { Event } from '../types/event';
 
 // Mock event data - in a real app, this would come from an API
-const mockEvents = [
-  {
-    id: '1',
-    title: 'Annual Tech Symposium 2025',
-    description: 'Join us for a day of innovation and technology talks featuring industry leaders and cutting-edge research presentations. This comprehensive symposium will cover the latest trends in AI, machine learning, web development, and cybersecurity. Network with professionals and fellow students passionate about technology.',
-    category: 'Academic',
-    date: 'December 15, 2025',
-    time: '9:00 AM - 5:00 PM',
-    location: 'Main Auditorium, Building A',
-    imageUrl: 'https://images.unsplash.com/photo-1760420940953-3958ad9f6287?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwY29uZmVyZW5jZSUyMHdvcmtzaG9wfGVufDF8fHx8MTc2MzE3NTM1NHww&ixlib=rb-4.1.0&q=80&w=1080',
-    attendees: 145,
-    maxAttendees: 200,
-    organizer: 'Computer Science Club',
-    organizerId: 'org-1',
-    contactEmail: 'cs-club@umd.edu',
-    price: 25.00,
-    tags: ['Technology', 'Innovation', 'Networking', 'Career'],
-    requirements: 'UMD student ID required for entry',
-    schedule: [
-      { time: '9:00 AM', activity: 'Registration & Breakfast' },
-      { time: '10:00 AM', activity: 'Keynote: Future of AI' },
-      { time: '11:30 AM', activity: 'Workshop Sessions' },
-      { time: '1:00 PM', activity: 'Lunch & Networking' },
-      { time: '2:30 PM', activity: 'Panel Discussion' },
-      { time: '4:00 PM', activity: 'Q&A and Closing Remarks' }
-    ],
-    speakers: [
-      { name: 'Dr. Sarah Johnson', role: 'AI Research Lead, Google' },
-      { name: 'Michael Chen', role: 'CTO, Tech Startup' },
-      { name: 'Prof. Robert Williams', role: 'CS Department, UMD' }
-    ]
-  },
-  {
-    id: '2',
-    title: 'Welcome Week Social Mixer',
-    description: 'Meet new friends and connect with fellow students! Enjoy food, music, and fun activities. Perfect for freshmen and transfer students.',
-    category: 'Social',
-    date: 'November 20, 2025',
-    time: '6:00 PM - 9:00 PM',
-    location: 'Student Center Plaza',
-    imageUrl: 'https://images.unsplash.com/photo-1632834380561-d1e05839a33a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bml2ZXJzaXR5JTIwY2FtcHVzJTIwc3R1ZGVudHN8ZW58MXx8fHwxNzYzMDcyMjI5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    attendees: 87,
-    maxAttendees: 150,
-    organizer: 'Student Council',
-    organizerId: 'org-2',
-    contactEmail: 'student-council@umd.edu',
-    price: 0,
-    tags: ['Social', 'Networking', 'Welcome Week'],
-    requirements: 'None - Open to all students'
-  },
-  {
-    id: '3',
-    title: 'Intramural Basketball Tournament',
-    description: 'Show off your skills in our annual basketball tournament. Teams of 5 compete for the championship trophy and bragging rights!',
-    category: 'Sports',
-    date: 'November 25, 2025',
-    time: '2:00 PM - 8:00 PM',
-    location: 'Recreation Center Courts',
-    imageUrl: 'https://images.unsplash.com/photo-1762709753300-342ab94e8b05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2xsZWdlJTIwc3BvcnRzJTIwZXZlbnR8ZW58MXx8fHwxNzYzMTc1MzU0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    attendees: 96,
-    maxAttendees: 100,
-    organizer: 'Athletics Department',
-    organizerId: 'org-3',
-    contactEmail: 'athletics@umd.edu',
-    price: 15.00,
-    tags: ['Sports', 'Basketball', 'Competition'],
-    requirements: 'Valid recreation center membership'
-  }
-];
+
 
 const categoryColors = {
   Academic: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300',
@@ -161,11 +93,21 @@ export function EventDetailsPage() {
       
       try {
         setIsLoading(true);
-        const eventData = await eventsService.getEventById(id);
+        // Use catalog endpoint which includes attendee_count
+        const catalogEvents = await eventsService.getCatalog();
+        const eventData = catalogEvents.find((e: any) => e.event_id === id);
+        
+        if (!eventData) {
+          throw new Error('Event not found');
+        }
+        
         setEvent(eventData);
         
-        // Check if user is already registered (from catalog data if available)
-        // This will be updated when we implement getMyRegistrations check
+        // Check if user is already registered from catalog data
+        if (eventData.is_user_registered) {
+          setIsRegistered(true);
+          setRegistrationStatus(eventData.user_registration_status || 'registered');
+        }
       } catch (error) {
         console.error('Failed to load event:', error);
         toast.error('Failed to load event details');
@@ -211,7 +153,15 @@ export function EventDetailsPage() {
   const isFree = !event.is_paid || event.price === 0;
 
   const handleRegister = async () => {
-    if (!event || isFull) return;
+    if (!event) return;
+
+    // Check if event is full - block both free and paid events
+    if (isFull) {
+      toast.error('Event is Full', {
+        description: 'This event has reached maximum capacity.',
+      });
+      return;
+    }
 
     // For paid events, navigate to payment page
     if (!isFree) {
@@ -239,8 +189,9 @@ export function EventDetailsPage() {
       }
       
       // Refresh event data to get updated attendee count
-      const updatedEvent = await eventsService.getEventById(event.event_id);
-      setEvent(updatedEvent);
+      const catalogEvents = await eventsService.getCatalog();
+      const updatedEvent = catalogEvents.find((e: any) => e.event_id === event.event_id);
+      if (updatedEvent) setEvent(updatedEvent);
     } catch (error: any) {
       console.error('Failed to register:', error);
       const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to register for event';
@@ -265,8 +216,9 @@ export function EventDetailsPage() {
       });
       
       // Refresh event data
-      const updatedEvent = await eventsService.getEventById(event.event_id);
-      setEvent(updatedEvent);
+      const catalogEvents = await eventsService.getCatalog();
+      const updatedEvent = catalogEvents.find((e: any) => e.event_id === event.event_id);
+      if (updatedEvent) setEvent(updatedEvent);
     } catch (error: any) {
       console.error('Failed to cancel registration:', error);
       toast.error('Cancellation Failed', {

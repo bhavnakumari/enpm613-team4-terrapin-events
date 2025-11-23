@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Ticket, Mail, Phone, User, Edit, Settings, Download } from 'lucide-react';
+import { Calendar, MapPin, Clock, Ticket, Mail, Phone, User, Edit, Settings, Download, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -11,6 +11,19 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../lib/api-client';
 import { eventsService } from '../services/events.service';
+import { registrationsService } from '../services/registrations.service';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
 
 interface RegisteredEvent {
   id: string;
@@ -25,51 +38,14 @@ interface RegisteredEvent {
   status: 'confirmed' | 'pending' | 'cancelled';
 }
 
-/* MOCK DATA - COMMENTED OUT (Using Real API Now)
-const mockRegistrations: RegisteredEvent[] = [
-  {
-    id: '1',
-    title: 'Annual Tech Symposium 2025',
-    date: 'December 15, 2025',
-    time: '9:00 AM - 5:00 PM',
-    location: 'Main Auditorium, Building A',
-    imageUrl: 'https://images.unsplash.com/photo-1760420940953-3958ad9f6287?w=400',
-    category: 'Academic',
-    ticketNumber: 'TS-2025-001234',
-    registeredAt: 'November 10, 2025',
-    status: 'confirmed',
-  },
-  {
-    id: '2',
-    title: 'Welcome Week Social Mixer',
-    date: 'November 20, 2025',
-    time: '6:00 PM - 9:00 PM',
-    location: 'Student Center Plaza',
-    imageUrl: 'https://images.unsplash.com/photo-1632834380561-d1e05839a33a?w=400',
-    category: 'Social',
-    ticketNumber: 'WW-2025-005678',
-    registeredAt: 'November 5, 2025',
-    status: 'confirmed',
-  },
-  {
-    id: '3',
-    title: 'Web Development Workshop',
-    date: 'December 1, 2025',
-    time: '3:00 PM - 6:00 PM',
-    location: 'Computer Lab 301',
-    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400',
-    category: 'Workshop',
-    ticketNumber: 'WD-2025-009012',
-    registeredAt: 'November 12, 2025',
-    status: 'confirmed',
-  },
-];
-*/
 
 export function UserProfilePage() {
   const [activeTab, setActiveTab] = useState('upcoming');
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState<RegisteredEvent[]>([]);
+  const [cancellingEventId, setCancellingEventId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     const fetchRegistrations = async () => {
@@ -107,6 +83,31 @@ export function UserProfilePage() {
 
   const upcomingEvents = registrations.filter(e => e.status === 'confirmed');
   const pastEvents: RegisteredEvent[] = [];
+
+  const handleCancelRegistration = async () => {
+    if (!selectedEvent) return;
+
+    try {
+      setCancellingEventId(selectedEvent.id);
+      setDialogOpen(false);
+      await registrationsService.cancelRegistration(selectedEvent.id);
+      
+      // Remove the cancelled event from the list
+      setRegistrations(prev => prev.filter(r => r.id !== selectedEvent.id));
+      
+      toast.success('Registration Cancelled', {
+        description: `Your registration for "${selectedEvent.title}" has been cancelled.`,
+      });
+    } catch (error: any) {
+      console.error('Failed to cancel registration:', error);
+      toast.error('Cancellation Failed', {
+        description: error?.message || 'Failed to cancel registration',
+      });
+    } finally {
+      setCancellingEventId(null);
+      setSelectedEvent(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 py-12">
@@ -275,9 +276,50 @@ export function UserProfilePage() {
                           <Download className="w-4 h-4 mr-2" />
                           Download Ticket
                         </Button>
-                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                          Cancel Registration
-                        </Button>
+                        <AlertDialog open={dialogOpen && selectedEvent?.id === event.id} onOpenChange={(open) => {
+                          setDialogOpen(open);
+                          if (!open) setSelectedEvent(null);
+                        }}>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                              disabled={cancellingEventId === event.id}
+                              onClick={() => {
+                                setSelectedEvent({ id: event.id, title: event.title });
+                                setDialogOpen(true);
+                              }}
+                            >
+                              {cancellingEventId === event.id ? 'Cancelling...' : 'Cancel Registration'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
+                                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                                </div>
+                                <AlertDialogTitle className="text-xl">Cancel Registration?</AlertDialogTitle>
+                              </div>
+                              <AlertDialogDescription className="text-base">
+                                Are you sure you want to cancel your registration for <strong>"{event.title}"</strong>? 
+                                This action cannot be undone and you may need to re-register if you change your mind.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="gap-2 sm:gap-2">
+                              <AlertDialogCancel className="mt-2 sm:mt-0">
+                                Keep Registration
+                              </AlertDialogCancel>
+                              <AlertDialogAction 
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                onClick={handleCancelRegistration}
+                              >
+                                Yes, Cancel Registration
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </div>
