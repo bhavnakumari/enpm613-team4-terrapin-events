@@ -77,5 +77,16 @@ async def seed_users():
     })
     print("Cleared existing test users")
     
+    # Insert test users
+    result = await db.users.insert_many(test_users)
+    print(f"Inserted {len(result.inserted_ids)} test users")
+    
+    # Print created users
+    for user in test_users:
+        print(f"  ✓ {user['directory_id']} ({user['role']}) - {user['email']}")
+    
+    print("\nSeeding completed successfully!")
+    client.close()
+    
 if __name__ == "__main__":
     asyncio.run(seed_users())
