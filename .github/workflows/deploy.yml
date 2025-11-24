@@ -14,7 +14,7 @@ jobs:
       IMAGE_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/terrapin-events-backend
       IMAGE_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/terrapin-events-frontend
       NAMESPACE: terrapin-events
-      VITE_API_URL: "https://logininloop.com/api"
+      VITE_API_URL: "https://logininloop.com"
 
     steps:
       - name: Checkout repository
