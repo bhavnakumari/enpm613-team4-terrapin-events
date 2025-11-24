@@ -15,6 +15,7 @@ import { CreateEventWizard } from './pages/CreateEventWizard';
 import { AdminApprovalPage } from './pages/AdminApprovalPage';
 import { UserProfilePage } from './pages/UserProfilePage';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import { FeedbackPage } from './pages/FeedbackPage';
 
 // Protected Route Component
 function ProtectedRoute({ 
@@ -96,6 +97,15 @@ export default function App() {
                       <EventDetailsPage />
                     </ProtectedRoute>
                   } />
+
+              {/* Public feedback page, used from email links */}
+                  <Route path="/events/:id/feedback" element={<FeedbackPage />} />
+                  <Route path="/payment" element={
+                    <ProtectedRoute>
+                      <PaymentPage />
+                    </ProtectedRoute>
+                  } />
+
                   <Route path="/payment" element={
                     <ProtectedRoute>
                       <PaymentPage />

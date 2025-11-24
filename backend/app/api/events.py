@@ -4,7 +4,7 @@ Only organizers and admins can create/modify events.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import logging
 
@@ -91,7 +91,7 @@ async def create_event(
     event_id = f"evt_{secrets.token_hex(6)}"
     
     # Create event document
-    current_time = datetime.utcnow()
+    current_time = datetime.now(timezone.utc)
     event = Event(
         event_id=event_id,
         title=event_data.title,
@@ -475,7 +475,7 @@ async def update_event(
                     await db.registrations.bulk_write(bulk_updates)
     
     # Always update the updated_at timestamp
-    update_fields["updated_at"] = datetime.utcnow()
+    update_fields["updated_at"] = datetime.now(timezone.utc)
     
     # Update in database
     result = await db.events.update_one(
@@ -540,7 +540,7 @@ async def submit_event_for_approval(
         {"event_id": event_id},
         {"$set": {
             "status": EventStatus.PENDING_APPROVAL,
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         }}
     )
 
@@ -687,7 +687,7 @@ async def get_admin_stats(
     logger.info(f"Total approved events found: {len(all_approved_events)}")
     
     # Filter for upcoming events in Python (more reliable than MongoDB string comparison)
-    current_time = datetime.utcnow()
+    current_time = datetime.now(timezone.utc)
     upcoming_events = []
     for event in all_approved_events:
         try:

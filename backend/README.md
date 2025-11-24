@@ -200,9 +200,127 @@ isort app/
 mypy app/
 ```
 
-**Run tests:**
+## Testing
+
+### Test Structure
+
+Tests are organized by module in the `tests/` directory:
+
+```
+tests/
+├── conftest.py                 # Shared fixtures and test configuration
+├── app/                        # Tests for app package
+│   ├── api/                    # Tests for API endpoints
+│   │   ├── test_auth.py        # Authentication endpoints
+│   │   ├── test_events.py      # Event management endpoints
+│   │   ├── test_registrations.py  # Registration endpoints
+│   │   └── test_users.py       # User profile endpoints
+│   └── utils/                  # Tests for utility modules
+│       ├── test_email.py       # Email utility tests
+│       ├── test_security.py    # Security utility tests (JWT, bcrypt)
+│       └── test_ticket.py      # Ticket generation tests
+├── test_config.py              # Configuration tests
+├── test_database.py            # Database integration tests
+└── test_main.py                # Main application tests
+```
+
+### Running Tests
+
+**Run all tests:**
 ```bash
-pytest
+pytest -v
+```
+
+**Run specific test category:**
+```bash
+# All API tests
+pytest tests/app/api/ -v
+
+# All utility tests
+pytest tests/app/utils/ -v
+
+# Core tests only
+pytest tests/test_*.py -v
+```
+
+**Run specific test file:**
+```bash
+pytest tests/app/api/test_auth.py -v
+pytest tests/test_config.py -v
+```
+
+### Coverage Reports
+
+**Run with full coverage:**
+```bash
+pytest --cov=app --cov-report=term-missing --cov-report=html -v
+```
+
+**Run with focused coverage (recommended):**
+```bash
+pytest --cov=app/api --cov=app/utils --cov=app/config.py --cov=app/database.py --cov=app/main.py --cov-report=term-missing --cov-report=html -v
+```
+
+This generates:
+- Terminal output with line-by-line coverage
+- HTML report in `htmlcov/index.html`
+
+**View HTML coverage report:**
+```bash
+open htmlcov/index.html  # macOS
+xdg-open htmlcov/index.html  # Linux
+start htmlcov/index.html  # Windows
+```
+
+### Current Coverage Stats
+
+**Overall: 87% coverage** (544 statements, 69 missed)
+
+| Module | Coverage | Notes |
+|--------|----------|-------|
+| `app/api/auth.py` | 93% | Authentication endpoints |
+| `app/api/events.py` | 87% | Event management, approval workflow |
+| `app/api/registrations.py` | 81% | Registrations, waitlist, payments |
+| `app/api/users.py` | 95% | User profile management |
+| `app/utils/email.py` | 94% | Email templates and sending |
+| `app/utils/security.py` | 93% | JWT and password hashing |
+| `app/utils/ticket.py` | 86% | QR code generation |
+
+**Test Count:** 94 tests (94 passed, 3 skipped, 0 failed)
+
+- API Tests: 58 tests (7 auth + 24 events + 16 registrations + 6 users)
+- Utility Tests: 19 tests (8 email + 9 security + 2 ticket)
+- Core Tests: 20 tests (8 config + 11 database + 7 main)
+
+### Test Fixtures
+
+Shared fixtures are defined in `conftest.py`:
+- `test_db`: Clean MongoDB test database
+- `sample_users`: Pre-populated test users (admin, organizer, participant)
+- `sample_event`: Pre-populated approved test event
+- `sample_paid_event`: Pre-populated paid event for payment testing
+- `admin_token`, `organizer_token`, `participant_token`: JWT authentication tokens
+
+### Testing Best Practices
+
+1. **Async Tests**: Use `@pytest.mark.asyncio` for async endpoints
+2. **Database Cleanup**: Each test gets a fresh database via fixtures
+3. **Dependency Override**: Use `app.dependency_overrides` for test database
+4. **AsyncClient**: Use `httpx.AsyncClient` for API testing (not TestClient)
+5. **Coverage Focus**: Prioritize testing business logic in `api/` and `utils/`
+
+### CI/CD Testing
+
+For continuous integration:
+```bash
+# Set test environment
+export MONGODB_URL="mongodb://localhost:27017"
+export JWT_SECRET_KEY="test-secret-key-123"
+
+# Run tests with coverage
+pytest --cov=app/api --cov=app/utils --cov=app/config.py --cov=app/database.py --cov=app/main.py --cov-report=term-missing --cov-report=xml -v
+
+# Coverage report will be in coverage.xml
 ```
 
 ## Security Features

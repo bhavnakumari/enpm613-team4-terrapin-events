@@ -5,7 +5,7 @@ Users can register for events.
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse
 from app.utils.ticket import generate_ticket_qr_data, format_event_datetime
@@ -14,15 +14,25 @@ import secrets
 
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.utils.email import (
     send_registration_email,
     send_cancellation_email,
     send_waitlist_promotion_email,
+    send_feedback_request_email,
 )
 from app.api.auth import get_current_user
 
-router = APIRouter(prefix="/api/events", tags=["Registrations"])
+
+router = APIRouter(
+    prefix="/api/events",
+    tags=["Registrations", "Feedback"],  # you can list both
+)
+
+class FeedbackPayload(BaseModel):
+    registration_id: str
+    ratings: Dict[str, int]
+    comments: Optional[str] = None
 
 class PaymentRequest(BaseModel):
     card_number: str = Field(..., min_length=12, max_length=19)
@@ -74,7 +84,7 @@ async def register_for_event(
     event = Event(**event_doc)
 
     # 2. Check if event is approved
-    if event.status != "approved":
+    if event.status != EventStatus.APPROVED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot register for events that are not approved",
@@ -509,3 +519,163 @@ async def get_ticket_for_event(
     )
 
     return HTMLResponse(content=html_content, status_code=200)
+
+@router.post("/{event_id}/feedback", status_code=status.HTTP_201_CREATED)
+async def submit_feedback(
+    event_id: str,
+    payload: FeedbackPayload,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    # 1. Validate registration belongs to the event
+    reg_doc = await db.registrations.find_one(
+        {
+            "event_id": event_id,
+            "registration_id": payload.registration_id,
+            "status": "registered",
+        }
+    )
+
+    if not reg_doc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid registration_id for this event or user not registered.",
+        )
+
+    reg = Registration(**reg_doc)
+
+    # 2. Save feedback in a new "feedback" collection
+    feedback_doc = {
+        "event_id": event_id,
+        "registration_id": payload.registration_id,
+        "user_id": reg.user_id,
+        "user_email": reg.user_email,
+        "ratings": payload.ratings,
+        "comments": payload.comments,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    # Upsert ensures each registration can submit feedback only once
+    await db.feedback.update_one(
+        {"registration_id": payload.registration_id, "event_id": event_id},
+        {"$set": feedback_doc},
+        upsert=True,
+    )
+
+    return {"message": "Feedback submitted successfully"}
+
+
+@router.get("/{event_id}/feedback/summary")
+async def get_feedback_summary(
+    event_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: dict = Depends(get_current_user),  # keep it admin/organizer only
+):
+    """
+    Return average ratings for an event based on all feedback documents.
+    Accessible only to authenticated users (you can further restrict to admin/organizer).
+    """
+
+    # Optional: ensure event exists (nice to have, but not required)
+    event = await db.events.find_one({"event_id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # TODO: if you want, enforce admin/organizer here:
+    # is_admin = current_user.get("role") == "admin"
+    # is_organizer = current_user.get("directory_id") == event.get("organizer_id")
+    # if not (is_admin or is_organizer):
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+    #                         detail="Not authorized to view feedback summary")
+
+    # 1. Load all feedback docs for this event
+    docs = await db.feedback.find({"event_id": event_id}).to_list(length=None)
+
+    if not docs:
+        return {
+            "event_id": event_id,
+            "count": 0,
+            "averages": {},
+        }
+
+    # 2. Compute averages in Python
+    count = len(docs)
+    sums: dict[str, float] = {}
+
+    for fb in docs:
+        ratings = fb.get("ratings", {}) or {}
+        for key, value in ratings.items():
+            try:
+                v = float(value)
+            except (TypeError, ValueError):
+                continue
+            sums[key] = sums.get(key, 0.0) + v
+
+    averages = {k: (sums[k] / count) for k in sums.keys() if count > 0}
+
+    return {
+        "event_id": event_id,
+        "count": count,
+        "averages": averages,
+    }
+
+@router.post("/{event_id}/feedback/reminders")
+async def send_feedback_reminders(
+    event_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Sends feedback request emails to all registered attendees for an event.
+    """
+
+    # 1. Get event info
+    event = await db.events.find_one({"event_id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    event_title = event.get("title", "Event")
+    event_location = event.get("location", "TBA")
+
+    start_time = event.get("start_time")
+    if start_time:
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+        formatted_date = start_time.strftime("%A, %B %d %Y, %I:%M %p")
+    else:
+        formatted_date = "To be announced"
+
+    # 2. Get all registered participants
+    regs_cursor = db.registrations.find({
+        "event_id": event_id,
+        "status": "registered"
+    })
+    registrations = await regs_cursor.to_list(None)
+
+    if not registrations:
+        return {"message": "No registered participants for this event"}
+
+    # 3. Send emails
+    frontend_url = "http://localhost:3000"  # 🔥 your Docker frontend port 3000
+
+    count = 0
+    for reg in registrations:
+        reg_id = reg["registration_id"]
+        email = reg["user_email"]
+
+        feedback_url = f"{frontend_url}/events/{event_id}/feedback?registration_id={reg_id}"
+
+        # Send email
+        send_feedback_request_email(
+            to_email=email,
+            event_title=event_title,
+            event_start_time=start_time,
+            event_location=event_location,
+            feedback_url=feedback_url,
+        )
+
+        count += 1
+
+    return {
+        "message": f"Feedback reminders sent to {count} participants",
+        "event_id": event_id,
+        "sent_count": count,
+    }

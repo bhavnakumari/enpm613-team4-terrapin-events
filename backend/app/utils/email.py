@@ -203,3 +203,37 @@ def send_waitlist_promotion_email(
         image_filename="umd.jpg",
         image_cid="eventlogo",
     )
+
+def send_feedback_request_email(
+    to_email: str,
+    event_title: str,
+    event_start_time: Optional[datetime],
+    event_location: Optional[str],
+    feedback_url: str,
+) -> None:
+    """
+    Send a 'please give feedback' email to a participant.
+    """
+    when = (
+        event_start_time.strftime("%A, %B %d %Y, %I:%M %p")
+        if event_start_time
+        else "To be announced"
+    )
+
+    html_template = load_template("feedback_request_email.html")
+
+    html_body = (
+        html_template
+        .replace("{{event_title}}", event_title)
+        .replace("{{event_datetime}}", when)
+        .replace("{{event_location}}", event_location or "TBA")
+        .replace("{{feedback_url}}", feedback_url)
+    )
+
+    _send_email_with_image(
+        to_email=to_email,
+        subject=f"[Terrapin Events] How was {event_title}?",
+        html_body=html_body,
+        image_filename="umd.jpg",   # same as your other emails
+        image_cid="eventlogo",
+    )

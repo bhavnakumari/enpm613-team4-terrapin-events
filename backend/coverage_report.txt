@@ -1,0 +1,16 @@
+_______________ coverage: platform darwin, python 3.13.3-final-0 _______________
+
+Name                       Stmts   Miss  Cover   Missing
+--------------------------------------------------------
+app/api/__init__.py            0      0   100%
+app/api/auth.py               30      2    93%   30, 38
+app/api/events.py            187     25    87%   65, 70, 85, 317-324, 370, 394-395, 401-402, 427-428, 487, 495, 517, 526, 549, 574, 581, 593, 694-697
+app/api/registrations.py     160     30    81%   212-222, 250, 280-289, 374-376, 421-422, 466-511
+app/api/users.py              38      2    95%   83, 95
+app/utils/__init__.py          0      0   100%
+app/utils/email.py            64      4    94%   77-78, 89-90
+app/utils/security.py         43      3    93%   34, 64, 99
+app/utils/ticket.py           22      3    86%   48-51
+--------------------------------------------------------
+TOTAL                        544     69    87%
+================= 94 passed, 3 skipped, 89 warnings in 46.65s ==================
