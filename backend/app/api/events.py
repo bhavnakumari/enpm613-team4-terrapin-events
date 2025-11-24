@@ -43,7 +43,7 @@ async def require_admin(user: dict = Depends(get_current_user)):
         )
     return user
 
-@router.post("/", response_model=Event, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Event, status_code=status.HTTP_201_CREATED)
 async def create_event(
     event_data: CreateEventRequest,
     user: dict = Depends(require_organizer_or_admin),
@@ -297,7 +297,7 @@ async def get_pending_events(
     return events
 
 
-@router.get("/", response_model=list[Event])
+@router.get("", response_model=list[Event])
 async def get_all_events(
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
