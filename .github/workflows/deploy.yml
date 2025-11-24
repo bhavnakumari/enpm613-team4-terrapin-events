@@ -1,0 +1,122 @@
+name: Build and deploy terrapin events
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      REGISTRY: docker.io
+      IMAGE_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/terrapin-events-backend
+      IMAGE_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/terrapin-events-frontend
+      NAMESPACE: terrapin-events
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Docker Hub log in
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_BACKEND }}:latest
+            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+
+      - name: Set up kubectl
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${KUBE_CONFIG}" > "$HOME/.kube/config"
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Install/update ingress-nginx
+        run: |
+          kubectl apply -f infra/k8s/ingress-nginx/deploy.yaml
+
+      - name: Install/update cert-manager
+        run: |
+          kubectl apply -f infra/k8s/cert-manager/cert-manager.yaml
+
+      - name: Create/update database secret
+        run: |
+          kubectl -n $NAMESPACE create secret generic terrapin-db \
+            --from-literal=MONGODB_URL="${MONGODB_URL}" \
+            --from-literal=MONGODB_DB_NAME="${MONGODB_DB_NAME}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+        env:
+          MONGODB_URL: ${{ secrets.MONGODB_URL }}
+          MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
+
+      - name: Create/update JWT & auth secrets
+        run: |
+          kubectl -n $NAMESPACE create secret generic terrapin-jwt \
+            --from-literal=JWT_SECRET_KEY="${JWT_SECRET_KEY}" \
+            --from-literal=JWT_ALGORITHM="${JWT_ALGORITHM}" \
+            --from-literal=JWT_ACCESS_TOKEN_EXPIRE_MINUTES="${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+        env:
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          JWT_ALGORITHM: ${{ secrets.JWT_ALGORITHM }}
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRE_MINUTES }}
+
+      - name: Create/update SMTP secret
+        run: |
+          kubectl -n $NAMESPACE create secret generic terrapin-smtp \
+            --from-literal=SMTP_HOST="${SMTP_HOST}" \
+            --from-literal=SMTP_PORT="${SMTP_PORT}" \
+            --from-literal=SMTP_USERNAME="${SMTP_USERNAME}" \
+            --from-literal=SMTP_PASSWORD="${SMTP_PASSWORD}" \
+            --from-literal=SMTP_FROM_EMAIL="${SMTP_FROM_EMAIL}" \
+            --from-literal=SMTP_FROM_NAME="${SMTP_FROM_NAME}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+          SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f production-namespace.yaml
+
+          # Terrapin Events resources
+          kubectl apply -f infra/k8s/deployment-backend.yaml
+          kubectl apply -f infra/k8s/deployment-frontend.yaml
+
+          # Cert-manager issuer & ingress
+          kubectl apply -f infra/k8s/cert-manager/cluster-issuer.yaml
+          kubectl apply -f infra/k8s/ingress-nginx/ingress.yaml
+
+          # HPAs
+          kubectl apply -f infra/k8s/hpa/backend-hpa.yaml
+          kubectl apply -f infra/k8s/hpa/frontend-hpa.yaml
+
+      - name: Restart deployments in case new images are available
+        run: |
+          kubectl -n $NAMESPACE rollout restart deployment/terrapin-events-backend
+          kubectl -n $NAMESPACE rollout restart deployment/terrapin-events-frontend
