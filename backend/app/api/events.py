@@ -14,7 +14,7 @@ from app.models.event import Event, EventStatus
 from app.utils.security import decode_access_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.api.auth import get_current_user   # 👈 ADD THIS
+from app.api.auth import get_current_user  
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
 security = HTTPBearer()

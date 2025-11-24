@@ -23,22 +23,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount and validate token
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('access_token');
-    
-    if (savedUser && token) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        // Invalid data, clear storage
-        localStorage.removeItem('user');
-        localStorage.removeItem('access_token');
+    const initAuth = async () => {
+      const savedUser = localStorage.getItem('user');
+      const token = localStorage.getItem('access_token');
+      
+      if (savedUser && token) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          
+          // Validate token by attempting to fetch user profile
+          try {
+            const freshUserData = await userService.getMyProfile();
+            setUser(freshUserData);
+            localStorage.setItem('user', JSON.stringify(freshUserData));
+          } catch (error) {
+            // Token is invalid or expired, clear everything
+            console.log('Token validation failed, clearing auth state');
+            localStorage.removeItem('user');
+            localStorage.removeItem('access_token');
+            setUser(null);
+          }
+        } catch {
+          // Invalid data in localStorage, clear storage
+          localStorage.removeItem('user');
+          localStorage.removeItem('access_token');
+          setUser(null);
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    
+    initAuth();
   }, []);
+
+  // Save user to localStorage whenever it changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+  }, [user]);
 
   const login = async (directoryId: string, password: string): Promise<void> => {
     setIsLoading(true);
@@ -62,7 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Clear all authentication data
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
+    
+    // Clear auth service state
     authService.logout();
+    
+    // Clear component state
     setUser(null);
     setError(null);
   };

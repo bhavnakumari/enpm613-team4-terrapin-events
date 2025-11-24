@@ -199,14 +199,6 @@ export function EventsCatalogPage() {
           className="flex items-center justify-between mb-8"
         >
           <h1 className="text-[#E21833] dark:text-[#E21833]">Upcoming Events</h1>
-          <Link to="/create-event">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button className="gap-2 bg-[#E21833] hover:bg-[#C11528]">
-                <Plus className="w-5 h-5" />
-                Create Event
-              </Button>
-            </motion.div>
-          </Link>
         </motion.div>
 
         {/* Search and Stats */}
@@ -336,11 +328,8 @@ export function EventsCatalogPage() {
               <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="mb-2">No events found</h3>
               <p className="text-muted-foreground mb-4">
-                {searchQuery ? 'Try adjusting your search' : 'Be the first to create an event!'}
+                {searchQuery ? 'Try adjusting your search' : 'Come back later for new events!'}
               </p>
-              <Link to="/create-event">
-                <Button className="bg-[#E21833] hover:bg-[#C11528]">Create Event</Button>
-              </Link>
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

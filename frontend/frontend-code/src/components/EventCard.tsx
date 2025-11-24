@@ -56,6 +56,17 @@ export function EventCard({ event, onToggleRSVP }: EventCardProps) {
           alt={event.title}
           className="w-full h-full object-cover"
         />
+        <div className="absolute top-3 left-3">
+          <Badge 
+            className={isPaidEvent 
+              ? "bg-green-50 text-green-800 border-green-200" 
+              : "bg-gray-50 text-blue-800 border-gray-200"
+            } 
+            variant="outline"
+          >
+            {isPaidEvent ? 'Paid' : 'Free'}
+          </Badge>
+        </div>
         <div className="absolute top-3 right-3">
           <Badge className={categoryColors[event.category]} variant="outline">
             {event.category}
