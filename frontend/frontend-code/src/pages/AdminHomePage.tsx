@@ -80,6 +80,7 @@ export function AdminHomePage() {
     try {
       setIsLoadingStats(true);
       const stats = await eventsService.getAdminStats();
+      console.log('Admin stats received:', stats);
       setAdminStats(stats);
     } catch (error) {
       console.error('Failed to load admin stats:', error);
@@ -202,13 +203,15 @@ export function AdminHomePage() {
   }));
 
   const upcomingEvents = (adminStats?.upcoming_events || []).slice(0, 3).map(event => {
-    const registrationPercentage = (event.registrations_count / event.capacity) * 100;
+    const registrations = event.registrations_count || 0;
+    const capacity = event.capacity || 1;
+    const registrationPercentage = (registrations / capacity) * 100;
     return {
-      id: event.event_id,
-      title: event.title,
-      date: formatDate(event.start_time),
-      registrations: event.registrations_count,
-      capacity: event.capacity,
+      id: event.event_id || '',
+      title: event.title || 'Untitled Event',
+      date: event.start_time ? formatDate(event.start_time) : 'TBD',
+      registrations: registrations,
+      capacity: capacity,
       status: registrationPercentage >= 75 ? 'High Demand' : 'On Track',
     };
   });
@@ -404,7 +407,8 @@ export function AdminHomePage() {
                   ) : upcomingEvents.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>No upcoming events</p>
+                      <p>No upcoming approved events</p>
+                      <p className="text-xs mt-2">Events must be approved and scheduled in the future</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -440,7 +444,7 @@ export function AdminHomePage() {
                               </span>
                             </div>
                             <Progress
-                              value={(event.registrations / event.capacity) * 100}
+                              value={Math.min(100, Math.max(0, (event.registrations / event.capacity) * 100))}
                               className="h-2"
                             />
                           </div>

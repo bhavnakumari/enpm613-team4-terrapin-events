@@ -1,5 +1,5 @@
 """Authentication endpoints for mock CAS login."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -70,7 +70,7 @@ async def login(
     # Update last login timestamp
     await db.users.update_one(
         {"directory_id": credentials.directory_id},
-        {"$set": {"last_login": datetime.utcnow()}}
+        {"$set": {"last_login": datetime.now(timezone.utc)}}
     )
     
     # Create JWT access token

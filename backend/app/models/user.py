@@ -4,7 +4,7 @@ Supports three roles: participant, organizer, admin.
 """
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -40,7 +40,7 @@ class UserInDB(BaseModel):
     address: Optional[str] = Field(None, max_length=500, description="Mailing address")
     bio: Optional[str] = Field(None, max_length=500, description="Short bio or description")
     
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login: Optional[datetime] = None
 
     class Config:

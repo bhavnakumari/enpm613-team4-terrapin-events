@@ -1,18 +1,24 @@
-import { Link } from 'react-router-dom';
-import { Calendar, Users, Search, TrendingUp, ArrowRight, Star, ChevronRight, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Calendar, Users, Search, TrendingUp, ArrowRight, Star, ChevronRight, Clock, Tag } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { eventsService } from '../services/events.service';
 import { registrationsService } from '../services/registrations.service';
 
 export function ParticipantHomePage() {
+  const navigate = useNavigate();
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<any[]>([]);
+  const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [categories, setCategories] = useState<any[]>([
     { name: 'Academic', count: 0, color: 'bg-blue-500', bgGradient: 'from-blue-500/10 to-blue-500/5', iconBg: 'bg-blue-500' },
     { name: 'Social', count: 0, color: 'bg-purple-500', bgGradient: 'from-purple-500/10 to-purple-500/5', iconBg: 'bg-purple-500' },
@@ -34,6 +40,9 @@ export function ParticipantHomePage() {
 
         const endTime = performance.now();
         console.log(`✅ Home data loaded in ${(endTime - startTime).toFixed(0)}ms (parallel)`);
+
+        // Store all events for search
+        setAllEvents(catalogEvents);
 
         // Process upcoming events
         const now = new Date();
@@ -76,7 +85,22 @@ export function ParticipantHomePage() {
     fetchData();
   }, []);
 
-  
+  // Memoized search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return { categories: [], events: [] };
+    
+    const query = searchQuery.toLowerCase();
+    const matchedCategories = categories.filter(c => 
+      c.name.toLowerCase().includes(query) && c.count > 0
+    );
+    const matchedEvents = allEvents.filter(e => 
+      e.title.toLowerCase().includes(query)
+    ).slice(0, 5);
+    
+    return { categories: matchedCategories, events: matchedEvents };
+  }, [searchQuery, categories, allEvents]);
+
+  const hasResults = searchResults.categories.length > 0 || searchResults.events.length > 0;
 
   return (
     <div className="min-h-screen">
@@ -101,17 +125,88 @@ export function ParticipantHomePage() {
                 Browse events, connect with students, and make the most of your time at UMD.
               </p>
               
-              {/* Search Bar */}
+              {/* Search Bar with Autocomplete */}
               <div className="flex gap-3 max-w-xl">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search for events..."
-                    className="pl-10 bg-white dark:bg-gray-800 border-0"
-                  />
-                </div>
-                <Button className="bg-[#E21833] hover:bg-[#C11528] text-white">
+                <Popover open={searchOpen && hasResults} onOpenChange={setSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                      <Input
+                        type="text"
+                        placeholder="Search for events or categories..."
+                        className="pl-10 bg-white dark:bg-gray-800 border-0"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setSearchOpen(e.target.value.trim().length > 0);
+                        }}
+                        onFocus={() => setSearchOpen(searchQuery.trim().length > 0)}
+                      />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[500px] p-0" align="start">
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        
+                        {searchResults.categories.length > 0 && (
+                          <CommandGroup heading="Categories">
+                            {searchResults.categories.map((category) => (
+                              <CommandItem
+                                key={category.name}
+                                onSelect={() => {
+                                  navigate(`/events?category=${category.name}`);
+                                  setSearchOpen(false);
+                                  setSearchQuery('');
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Tag className="w-4 h-4 mr-2 text-[#E21833]" />
+                                <span>{category.name}</span>
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                  {category.count} events
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        
+                        {searchResults.events.length > 0 && (
+                          <CommandGroup heading="Events">
+                            {searchResults.events.map((event) => (
+                              <CommandItem
+                                key={event.event_id}
+                                onSelect={() => {
+                                  navigate(`/events/${event.event_id}`);
+                                  setSearchOpen(false);
+                                  setSearchQuery('');
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Calendar className="w-4 h-4 mr-2 text-[#E21833]" />
+                                <div className="flex-1 truncate">
+                                  <div className="font-medium truncate">{event.title}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(event.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <Button 
+                  className="bg-[#E21833] hover:bg-[#C11528] text-white"
+                  onClick={() => {
+                    if (searchQuery.trim()) {
+                      navigate(`/events?search=${encodeURIComponent(searchQuery)}`);
+                      setSearchQuery('');
+                    }
+                  }}
+                >
                   Search
                 </Button>
               </div>
@@ -151,9 +246,11 @@ export function ParticipantHomePage() {
                     </Badge>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm">
-                  View Details
-                </Button>
+                <Link to={`/events/${event.id}`}>
+                  <Button variant="ghost" size="sm">
+                    View Details
+                  </Button>
+                </Link>
               </Card>
             ))}
           </div>
