@@ -14,7 +14,7 @@ import secrets
 
 from app.database import get_db
 from app.models.registration import Registration, RegistrationStatus
-from app.models.event import Event
+from app.models.event import Event, EventStatus
 from app.utils.email import (
     send_registration_email,
     send_cancellation_email,
@@ -74,7 +74,7 @@ async def register_for_event(
     event = Event(**event_doc)
 
     # 2. Check if event is approved
-    if event.status != "approved":
+    if event.status != EventStatus.APPROVED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot register for events that are not approved",
