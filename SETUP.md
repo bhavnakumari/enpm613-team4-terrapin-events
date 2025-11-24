@@ -11,7 +11,7 @@
 ### Build and Start Everything
 ```bash
 cd enpm613-team4-terrapin-events
-docker-compose -f infra/docker-compose.yml up --build
+docker-compose -f infra/docker-compose.yml up -d --build
 ```
 
 This starts:

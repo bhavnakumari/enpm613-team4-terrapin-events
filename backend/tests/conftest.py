@@ -6,6 +6,7 @@ import asyncio
 from typing import AsyncGenerator, Generator
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from datetime import datetime, timezone
+import os
 
 from app.main import app
 from app.utils.security import hash_password
@@ -14,7 +15,7 @@ from app.utils.security import hash_password
 # Test database configuration
 TEST_DB_NAME = "terrapin_events_test"
 # Use localhost for tests instead of Docker service name
-TEST_MONGODB_URL = "mongodb://localhost:27017"
+os.getenv('TEST_MONGODB_URL', 'mongodb://localhost:27017')
 
 
 @pytest.fixture(scope="session")

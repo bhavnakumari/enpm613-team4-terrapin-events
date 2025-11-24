@@ -2,7 +2,7 @@
 Tests for event registration endpoints.
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from app.main import app
 
@@ -97,13 +97,13 @@ class TestEventRegistrations:
             "description": "Not approved yet",
             "category": "workshop",
             "location": "Test Location",
-            "start_time": datetime.utcnow() + timedelta(days=5),
+            "start_time": datetime.now(timezone.utc) + timedelta(days=5),
             "capacity": 50,
             "status": "draft",
             "organizer_id": "org001",
             "organizer_email": "organizer@umd.edu",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc) ,
             "is_paid": False,
             "price": 0.0,
             "currency": "USD"

@@ -286,6 +286,8 @@ start htmlcov/index.html  # Windows
 | `app/utils/security.py` | 93% | JWT and password hashing |
 | `app/utils/ticket.py` | 86% | QR code generation |
 
+**These stats are from a specific test run and may change, or implement automated coverage badge generation to keep this documentation up-to-date**
+
 **Test Count:** 94 tests (94 passed, 3 skipped, 0 failed)
 
 - API Tests: 58 tests (7 auth + 24 events + 16 registrations + 6 users)
