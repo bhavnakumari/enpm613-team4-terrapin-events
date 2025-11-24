@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terrapin-events-backend
+  namespace: terrapin-events
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: terrapin-events-backend
+  template:
+    metadata:
+      labels:
+        app: terrapin-events-backend
+    spec:
+      containers:
+        - name: backend
+          image: jigsawzero/terrapin-events-backend:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MONGODB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-db
+                  key: MONGODB_URL
+            - name: MONGODB_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-db
+                  key: MONGODB_DB_NAME
+
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-jwt
+                  key: JWT_SECRET_KEY
+            - name: JWT_ALGORITHM
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-jwt
+                  key: JWT_ALGORITHM
+            - name: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-jwt
+                  key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_PORT
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_USERNAME
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_PASSWORD
+            - name: SMTP_FROM_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_FROM_EMAIL
+            - name: SMTP_FROM_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: terrapin-smtp
+                  key: SMTP_FROM_NAME
+                  
+            - name: ENVIRONMENT
+              value: "production"
+            - name: DEBUG
+              value: "false"
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terrapin-events-backend
+  namespace: terrapin-events
+spec:
+  type: ClusterIP
+  selector:
+    app: terrapin-events-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
