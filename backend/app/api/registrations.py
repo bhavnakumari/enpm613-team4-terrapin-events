@@ -654,7 +654,7 @@ async def send_feedback_reminders(
         return {"message": "No registered participants for this event"}
 
     # 3. Send emails
-    frontend_url = "http://localhost:3000"  # 🔥 your Docker frontend port 3000
+    frontend_url = "https://logicinloop.com"
 
     count = 0
     for reg in registrations:

@@ -39,14 +39,17 @@ function ProtectedRoute({
     </div>;
   }
   
+  // Redirect to landing page if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
   
+  // Redirect to home if trying to access admin-only page without admin role
   if (adminOnly && !isAdmin) {
     return <Navigate to="/" replace />;
   }
   
+  // Redirect to home if trying to access organizer-only page without proper role
   if (organizerOnly && !(isOrganizer || isAdmin)) {
     return <Navigate to="/" replace />;
   }

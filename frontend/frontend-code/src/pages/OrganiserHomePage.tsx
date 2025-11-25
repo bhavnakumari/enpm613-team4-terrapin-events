@@ -26,6 +26,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { eventsService } from '../services/events.service';
 import { toast } from 'sonner';
 import type { Event } from '../types/event';
+import myImage from "../assets/4cff8f2c455ab3900a0a28dbc0b394a77b5bf782.png";
 
 export function OrganiserHomePage() {
   const [activeTab, setActiveTab] = useState<'drafts' | 'published'>('drafts');
@@ -238,7 +239,7 @@ export function OrganiserHomePage() {
             <div className="relative hidden lg:block">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <img
-                  src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bml2ZXJzaXR5JTIwc3R1ZGVudHN8ZW58MXx8fHwxNzYzMDgxNDQyfDA&ixlib=rb-4.1.0&q=80&w=1080"
+                  src={myImage}
                   alt="UMD Students Collaborating"
                   className="w-full h-[400px] object-cover"
                 />
