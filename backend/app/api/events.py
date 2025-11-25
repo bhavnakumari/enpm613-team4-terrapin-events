@@ -2,7 +2,7 @@
 Event management endpoints.
 Only organizers and admins can create/modify events.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timezone
 import secrets
@@ -14,7 +14,11 @@ from app.models.event import Event, EventStatus
 from app.utils.security import decode_access_token
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.api.auth import get_current_user  
+from app.api.auth import get_current_user
+from app.utils.email import (
+    send_event_submitted_email_to_admins,
+    send_event_status_update_email_to_organizer,
+)
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
 security = HTTPBearer()
@@ -46,6 +50,7 @@ async def require_admin(user: dict = Depends(get_current_user)):
 @router.post("", response_model=Event, status_code=status.HTTP_201_CREATED)
 async def create_event(
     event_data: CreateEventRequest,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_organizer_or_admin),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
@@ -119,7 +124,30 @@ async def create_event(
     
     # Insert into database
     await db.events.insert_one(event.model_dump())
-    
+
+    # If event is immediately submitted for approval, notify admins
+    if event.status == EventStatus.PENDING_APPROVAL:
+        admin_emails: list[str] = []
+
+        # Prefer requested admin if specified
+        if requested_admin_email:
+            admin_emails.append(requested_admin_email)
+        else:
+            # Otherwise, email all admins
+            async for admin_user in db.users.find({"role": "admin"}):
+                if admin_user.get("email"):
+                    admin_emails.append(admin_user["email"])
+
+        if admin_emails:
+            background_tasks.add_task(
+                send_event_submitted_email_to_admins,
+                admin_emails,
+                event.title,
+                event.start_time,
+                event.location,
+                event.organizer_email,
+            )
+
     return event
 
 
@@ -355,6 +383,7 @@ async def get_event_by_id(
 async def update_event(
     event_id: str,
     update_data: UpdateEventRequest,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_organizer_or_admin),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
@@ -489,19 +518,40 @@ async def update_event(
             detail="Event not found"
         )
     
-    # Fetch and return updated event
-    updated_event = await db.events.find_one({"event_id": event_id})
-    if not updated_event:
+    # Fetch updated event
+    updated_event_doc = await db.events.find_one({"event_id": event_id})
+    if not updated_event_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found after update"
         )
-    return Event(**updated_event)
+
+    updated_event = Event(**updated_event_doc)
+
+    # If admin changed status to approved/rejected, email organizer (background)
+    if "status" in update_fields and user["role"] == "admin":
+        old_status = event_doc["status"]
+        new_status = update_fields["status"]
+
+        if old_status != new_status and new_status in ["approved", "rejected"]:
+            organizer_email = updated_event.organizer_email
+            if organizer_email:
+                background_tasks.add_task(
+                    send_event_status_update_email_to_organizer,
+                    organizer_email,
+                    updated_event.title,
+                    updated_event.start_time,
+                    updated_event.location,
+                    new_status,
+                )
+
+    return updated_event
 
 
 @router.post("/{event_id}/submit", response_model=Event)
 async def submit_event_for_approval(
     event_id: str,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_organizer_or_admin),
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
@@ -536,23 +586,37 @@ async def submit_event_for_approval(
         )
 
     # Update status to pending_approval
-    await db.events.update_one(
-        {"event_id": event_id},
-        {"$set": {
-            "status": EventStatus.PENDING_APPROVAL,
-            "updated_at": datetime.now(timezone.utc)
-        }}
-    )
-
     updated_doc = await db.events.find_one({"event_id": event_id})
     if not updated_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found after update"
         )
-    
+
+    updated_event = Event(**updated_doc)
+
+    # Notify admins that this event is now pending approval
+    admin_emails: list[str] = []
+
+    if updated_event.requested_admin_email:
+        admin_emails.append(updated_event.requested_admin_email)
+    else:
+        async for admin_user in db.users.find({"role": "admin"}):
+            if admin_user.get("email"):
+                admin_emails.append(admin_user["email"])
+
+    if admin_emails:
+        background_tasks.add_task(
+            send_event_submitted_email_to_admins,
+            admin_emails,
+            updated_event.title,
+            updated_event.start_time,
+            updated_event.location,
+            updated_event.organizer_email,
+        )
+
     logger.info(f"Event {event_id} submitted for approval by {user['directory_id']}")
-    return Event(**updated_doc)
+    return updated_event
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
