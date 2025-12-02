@@ -4,8 +4,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { useAuth } from '../contexts/AuthContext';
-import umdCampusImage from 'figma:asset/a93c597979bc9f2022b9624ac797e04f963270c6.png';
+import umdHeroImage from 'figma:asset/08fe0f7715edc9b07d709f5f204ee11cb38b8e2a.png';
+import umdCtaImage from 'figma:asset/a0ff0362bf045e3a9e880237f33e03f91e868bf0.png';
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
@@ -64,27 +64,33 @@ export function LandingPage() {
       {/* Hero Section */}
       <section className="relative h-[600px] overflow-hidden">
         <img
-          src={umdCampusImage}
+          src={umdHeroImage}
           alt="University of Maryland Campus Building"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 flex items-center">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl">
-              <Badge className="mb-4 bg-white/20 text-white border-white/30">
+              <Badge className="mb-4 bg-white/90 text-[#E21833] border-white/30">
                 <Star className="w-3 h-3 mr-1" />
                 Trusted by 50,000+ Students
               </Badge>
-              <div className="mb-8 p-8 bg-white/10 dark:bg-black/20 backdrop-blur-sm border-2 border-white/30 rounded-2xl">
-                <h1 className="mb-6 text-white font-bold">
+              <div className="mb-8">
+                <h1 className="mb-6 text-white font-bold" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}>
                   Discover & Create Amazing Campus Events
                 </h1>
-                <p className="text-xl text-white/90 font-bold">
+                <p className="text-xl text-white/90 font-bold" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}>
                   Join the University of Maryland's premier event management platform. 
                   Create events, connect with students, and make campus life unforgettable.
                 </p>
               </div>
               <div className="flex flex-wrap gap-4">
+                <Link to="/events">
+                  <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
+                    Browse Events
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </Link>
                 {isAuthenticated ? (
                   <>
                     <Link to="/events">
@@ -221,8 +227,14 @@ export function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-[#E21833] dark:bg-[#C11528] text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="relative py-20 text-white overflow-hidden">
+        <ImageWithFallback
+          src={umdCtaImage}
+          alt="Campus Activities"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-[#E21833]/80 dark:bg-[#C11528]/80" />
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="mb-6 text-white">Ready to Create Your Next Event?</h2>
           <p className="text-xl mb-8 text-white/90">
             Join hundreds of student organizations making campus life better, one event at a time.
