@@ -19,7 +19,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAdmin, isOrganizer } = useAuth();
+  const { user, logout, isAdmin, isOrganizer, isParticipant } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -27,7 +27,7 @@ export function Layout({ children }: LayoutProps) {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -56,43 +56,63 @@ export function Layout({ children }: LayoutProps) {
               >
                 Home
               </Link>
-              <Link
-                to="/events"
-                className={`hover:text-[#E21833] transition-colors ${
-                  isActive('/events') ? 'text-[#E21833]' : ''
-                }`}
-              >
-                Events Catalog
-              </Link>
+              
+              {/* Participant Navigation */}
+              {isParticipant && (
+                <>
+                  <Link
+                    to="/events"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/events') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Events Catalog
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/profile') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    My Profile
+                  </Link>
+                </>
+              )}
+              
+              {/* Organiser Navigation */}
               {isOrganizer && (
-                <Link
-                  to="/create-event"
-                  className={`hover:text-[#E21833] transition-colors ${
-                    isActive('/create-event') ? 'text-[#E21833]' : ''
-                  }`}
-                >
-                  Create Event
-                </Link>
+                <>
+                  <Link
+                    to="/create-event"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/create-event') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Create Event
+                  </Link>
+                </>
               )}
-              {(isAdmin || isOrganizer) && (
-                <Link
-                  to="/analytics"
-                  className={`hover:text-[#E21833] transition-colors ${
-                    isActive('/analytics') ? 'text-[#E21833]' : ''
-                  }`}
-                >
-                  Analytics
-                </Link>
-              )}
+              
+              {/* Admin Navigation */}
               {isAdmin && (
-                <Link
-                  to="/admin"
-                  className={`hover:text-[#E21833] transition-colors ${
-                    isActive('/admin') ? 'text-[#E21833]' : ''
-                  }`}
-                >
-                  Admin
-                </Link>
+                <>
+                  <Link
+                    to="/admin"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/admin') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Admin Approval
+                  </Link>
+                  <Link
+                    to="/analytics"
+                    className={`hover:text-[#E21833] transition-colors ${
+                      isActive('/analytics') ? 'text-[#E21833]' : ''
+                    }`}
+                  >
+                    Analytics
+                  </Link>
+                </>
               )}
             </nav>
 
@@ -115,16 +135,16 @@ export function Layout({ children }: LayoutProps) {
                 </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm">
-                  <div>{user?.name || 'John Terp'}</div>
+                  <div>{user ? `${user.first_name} ${user.last_name}` : 'John Terp'}</div>
                   <div className="text-xs text-muted-foreground">{user?.email || 'john@umd.edu'}</div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => window.location.href = '/profile'}>
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
                   <User className="w-4 h-4 mr-2" />
                   Profile & Registrations
                 </DropdownMenuItem>
                 {isAdmin && (
-                  <DropdownMenuItem onClick={() => window.location.href = '/analytics'}>
+                  <DropdownMenuItem onClick={() => navigate('/analytics')}>
                     <BarChart3 className="w-4 h-4 mr-2" />
                     My Analytics
                   </DropdownMenuItem>

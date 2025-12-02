@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <body style="margin:0; padding:0; font-family:Arial, sans-serif;">
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0">
+
+            <!-- HEADER IMAGE (scaled like registration email) -->
+            <tr>
+              <td>
+                <img
+                  src="cid:eventlogo"
+                  alt="Event Banner"
+                  style="display:block; width:100%; max-width:600px; height:auto;"
+                />
+              </td>
+            </tr>
+
+            <!-- MAIN CONTENT -->
+            <tr>
+              <td style="padding:20px; color:#000000;">
+
+                <h2 style="margin-top:0;">
+                  We'd love your feedback on {{event_title}}
+                </h2>
+
+                <p>
+                  Thanks for attending <strong>{{event_title}}</strong>.<br />
+                  <strong>Date & Time:</strong> {{event_datetime}}<br />
+                  <strong>Location:</strong> {{event_location}}
+                </p>
+
+                <p style="margin:24px 0 12px 0;">
+                  Please click the button below to share your feedback:
+                </p>
+
+                <!-- FEEDBACK BUTTON -->
+                <p>
+                  <a
+                    href="{{feedback_url}}"
+                    style="
+                      background:#E21833;
+                      color:#fff;
+                      padding:12px 20px;
+                      border-radius:4px;
+                      text-decoration:none;
+                      font-weight:bold;
+                      display:inline-block;
+                    "
+                  >
+                    Give Feedback
+                  </a>
+                </p>
+
+                <!-- FALLBACK LINK -->
+                <p style="margin-top:24px; font-size:13px; color:#666;">
+                  If the button doesn't work, copy and paste this URL into your browser:<br />
+                  {{feedback_url}}
+                </p>
+
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+
+  </body>
+</html>

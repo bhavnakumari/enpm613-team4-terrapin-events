@@ -20,12 +20,34 @@ const categoryColors = {
 };
 
 export function EventCard({ event, onToggleRSVP }: EventCardProps) {
+  const navigate = useNavigate();
   const spotsLeft = event.maxAttendees - event.attendees;
   const isAlmostFull = spotsLeft <= 10 && spotsLeft > 0;
   const isFull = spotsLeft <= 0;
+  const isWaitlisted = event.registrationStatus === 'waitlisted';
+  const isRegistered = event.registrationStatus === 'registered';
+  const isPaidEvent = event.price && event.price > 0;
+  
+  // Determine button text
+  let buttonText = 'RSVP';
+  if (isRegistered) {
+    buttonText = 'Cancel RSVP';
+  } else if (isWaitlisted) {
+    buttonText = 'Cancel Waitlist';
+  } else if (isFull) {
+    buttonText = 'Join Waitlist';
+  }
 
-  const navigate = useNavigate();
-
+  const handleRSVPClick = () => {
+    // For paid events that user hasn't registered for, navigate to details page
+    if (isPaidEvent && !isRegistered && !isWaitlisted) {
+      navigate(`/events/${event.id}`);
+    } else {
+      // For free events or cancellation/waitlist actions, call the registration toggle
+      onToggleRSVP(event.id);
+    }
+  };
+  
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative h-48 overflow-hidden">
@@ -34,6 +56,17 @@ export function EventCard({ event, onToggleRSVP }: EventCardProps) {
           alt={event.title}
           className="w-full h-full object-cover"
         />
+        <div className="absolute top-3 left-3">
+          <Badge 
+            className={isPaidEvent 
+              ? "bg-green-50 text-green-800 border-green-200" 
+              : "bg-gray-50 text-blue-800 border-gray-200"
+            } 
+            variant="outline"
+          >
+            {isPaidEvent ? 'Paid' : 'Free'}
+          </Badge>
+        </div>
         <div className="absolute top-3 right-3">
           <Badge className={categoryColors[event.category]} variant="outline">
             {event.category}
@@ -78,14 +111,20 @@ export function EventCard({ event, onToggleRSVP }: EventCardProps) {
           >
             View Details
           </Button>
-          <Button
-            className="flex-1 bg-[#E21833] hover:bg-[#C11528]"
-            variant={event.isRegistered ? "secondary" : "default"}
-            onClick={() => onToggleRSVP(event.id)}
-            disabled={isFull && !event.isRegistered}
-          >
-            {event.isRegistered ? 'Cancel RSVP' : isFull ? 'Full' : 'RSVP'}
-          </Button>
+          <div className="flex-1 flex flex-col gap-1">
+            <Button
+              className="w-full bg-[#E21833] hover:bg-[#C11528]"
+              variant={event.isRegistered ? "secondary" : "default"}
+              onClick={handleRSVPClick}
+            >
+              {buttonText}
+            </Button>
+            {/* {isWaitlisted && (
+              <Badge variant="outline" className="text-xs text-center bg-orange-50 text-orange-800 border-orange-200">
+                On Waitlist
+              </Badge>
+            )} */}
+          </div>
         </div>
       </div>
     </Card>

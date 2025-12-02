@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CreditCard, Lock, Check, ChevronRight } from 'lucide-react';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { CreditCard, Lock, Check, ChevronRight, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -9,31 +9,97 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Separator } from '../components/ui/separator';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';
+import { registrationsService } from '../services/registrations.service';
+import { toast } from 'sonner';
 
 export function PaymentPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const event = location.state?.event;
+  
   const [paymentMethod, setPaymentMethod] = useState('credit_card');
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Payment form fields
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiryMonth, setExpiryMonth] = useState('');
+  const [expiryYear, setExpiryYear] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [cardholderName, setCardholderName] = useState('');
 
-  const eventDetails = {
-    title: 'Annual Tech Symposium 2025',
-    date: 'December 15, 2025',
-    time: '9:00 AM - 5:00 PM',
-    location: 'Main Auditorium, Building A',
-    price: 25.00,
-    serviceFee: 2.50,
-  };
+  // Redirect if no event data
+  if (!event) {
+    return <Navigate to="/events" replace />;
+  }
 
-  const total = eventDetails.price + eventDetails.serviceFee;
+  const serviceFee = 2.50;
+  const total = (event.price || 0) + serviceFee;
+  const spotsLeft = event.capacity - (event.attendeeCount || 0);
+  const showCapacityWarning = spotsLeft > 0 && spotsLeft <= 10;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeToTerms) {
-      alert('Please agree to the terms and conditions');
+      toast.error('Please agree to the terms and conditions');
       return;
     }
-    // Process payment
-    navigate('/registration-confirmation');
+    
+    // Validate payment fields
+    if (!cardNumber || !expiryMonth || !expiryYear || !cvc || !cardholderName) {
+      toast.error('Please fill in all payment fields');
+      return;
+    }
+    
+    try {
+      setIsProcessing(true);
+      
+      // Prepare payment data for backend
+      const paymentData = {
+        card_number: cardNumber.replace(/\s/g, ''), // Remove spaces
+        expiry_month: parseInt(expiryMonth),
+        expiry_year: parseInt(expiryYear),
+        cvc: cvc,
+      };
+      
+      // Register for event with payment data
+      const registration = await registrationsService.registerForEvent(event.event_id, paymentData);
+      
+      // Navigate to confirmation page with registration data
+      navigate('/registration-confirmation', {
+        state: {
+          registration,
+          event,
+          amount: total,
+          ticketNumber: `TKT-${Date.now()}`,
+        },
+      });
+      
+      toast.success('Payment Successful!');
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Registration failed';
+      
+      // Check if event became full
+      if (errorMessage.toLowerCase().includes('full') || errorMessage.toLowerCase().includes('capacity')) {
+        toast.error('Event Filled Up', {
+          description: 'This event filled up while you were completing payment. Your payment will be refunded within 3-5 business days.',
+          duration: 6000,
+        });
+        setTimeout(() => navigate(`/events/${event.event_id}`), 2000);
+      } else if (errorMessage.toLowerCase().includes('already registered')) {
+        toast.error('Already Registered', {
+          description: 'You are already registered for this event.',
+        });
+        navigate(`/events/${event.event_id}`);
+      } else {
+        toast.error('Registration Failed', {
+          description: errorMessage,
+        });
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -43,6 +109,21 @@ export function PaymentPage() {
           <h1 className="mb-2 text-[#E21833]">Complete Your Registration</h1>
           <p className="text-muted-foreground">Secure payment powered by UMD</p>
         </div>
+
+        {/* Capacity Warning */}
+        {showCapacityWarning && (
+          <Card className="mb-6 p-4 border-orange-500 bg-orange-50 dark:bg-orange-950">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-orange-900 dark:text-orange-100 mb-1">Limited Spots Remaining</h4>
+                <p className="text-sm text-orange-700 dark:text-orange-300">
+                  Only {spotsLeft} spots left! Complete your payment quickly to secure your registration.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Payment Form */}
@@ -79,17 +160,34 @@ export function PaymentPage() {
                     <Label htmlFor="cardNumber">Card Number</Label>
                     <Input
                       id="cardNumber"
-                      placeholder="1234 5678 9012 3456"
+                      placeholder="4242 4242 4242 4242 (test card)"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(e.target.value)}
                       required
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="expiry">Expiry Date</Label>
+                      <Label htmlFor="expiryMonth">Month</Label>
                       <Input
-                        id="expiry"
-                        placeholder="MM/YY"
+                        id="expiryMonth"
+                        placeholder="12"
+                        value={expiryMonth}
+                        onChange={(e) => setExpiryMonth(e.target.value)}
+                        maxLength={2}
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="expiryYear">Year</Label>
+                      <Input
+                        id="expiryYear"
+                        placeholder="2030"
+                        value={expiryYear}
+                        onChange={(e) => setExpiryYear(e.target.value)}
+                        maxLength={4}
                         required
                       />
                     </div>
@@ -100,6 +198,8 @@ export function PaymentPage() {
                         id="cvv"
                         placeholder="123"
                         type="password"
+                        value={cvc}
+                        onChange={(e) => setCvc(e.target.value)}
                         maxLength={4}
                         required
                       />
@@ -115,6 +215,8 @@ export function PaymentPage() {
                     <Input
                       id="name"
                       placeholder="John Terp"
+                      value={cardholderName}
+                      onChange={(e) => setCardholderName(e.target.value)}
                       required
                     />
                   </div>
@@ -182,9 +284,19 @@ export function PaymentPage() {
                     type="submit"
                     className="w-full bg-[#E21833] hover:bg-[#C11528]"
                     size="lg"
+                    disabled={!agreeToTerms || isProcessing}
                   >
-                    <Lock className="w-4 h-4 mr-2" />
-                    Complete Payment
+                    {isProcessing ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4 mr-2" />
+                        Complete Payment
+                      </>
+                    )}
                   </Button>
 
                   <p className="text-xs text-center text-muted-foreground">
@@ -226,11 +338,11 @@ export function PaymentPage() {
 
               <div className="space-y-4 mb-6">
                 <div>
-                  <h4 className="mb-1">{eventDetails.title}</h4>
+                  <h4 className="mb-1">{event.title}</h4>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    <p>{eventDetails.date}</p>
-                    <p>{eventDetails.time}</p>
-                    <p>{eventDetails.location}</p>
+                    <p>{event.formattedDate}</p>
+                    <p>{event.formattedTime}</p>
+                    <p>{event.location}</p>
                   </div>
                 </div>
 
@@ -239,11 +351,11 @@ export function PaymentPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Ticket Price</span>
-                    <span>${eventDetails.price.toFixed(2)}</span>
+                    <span>${(event.price || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Service Fee</span>
-                    <span>${eventDetails.serviceFee.toFixed(2)}</span>
+                    <span>${serviceFee.toFixed(2)}</span>
                   </div>
                 </div>
 

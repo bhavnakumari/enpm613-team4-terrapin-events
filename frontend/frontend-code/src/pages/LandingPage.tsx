@@ -8,6 +8,7 @@ import umdHeroImage from 'figma:asset/08fe0f7715edc9b07d709f5f204ee11cb38b8e2a.p
 import umdCtaImage from 'figma:asset/a0ff0362bf045e3a9e880237f33e03f91e868bf0.png';
 
 export function LandingPage() {
+  const { isAuthenticated } = useAuth();
   const features = [
     {
       icon: Calendar,
@@ -90,6 +91,35 @@ export function LandingPage() {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link to="/events">
+                      <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
+                        Browse Events
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </Button>
+                    </Link>
+                    <Link to="/create-event">
+                      <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                        Create Event
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/login">
+                      <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
+                        Sign In
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </Button>
+                    </Link>
+                    <Link to="/login">
+                      <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                        Get Started
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -209,9 +239,9 @@ export function LandingPage() {
           <p className="text-xl mb-8 text-white/90">
             Join hundreds of student organizations making campus life better, one event at a time.
           </p>
-          <Link to="/create-event">
+          <Link to={isAuthenticated ? "/create-event" : "/login"}>
             <Button size="lg" className="bg-white text-[#E21833] hover:bg-gray-100">
-              Get Started Now
+              {isAuthenticated ? "Get Started Now" : "Sign In to Get Started"}
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>

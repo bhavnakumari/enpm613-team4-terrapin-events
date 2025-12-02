@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terrapin-events-frontend
+  namespace: terrapin-events
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: terrapin-events-frontend
+  template:
+    metadata:
+      labels:
+        app: terrapin-events-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: jigsawzero/terrapin-events-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terrapin-events-frontend
+  namespace: terrapin-events
+spec:
+  type: ClusterIP
+  selector:
+    app: terrapin-events-frontend
+  ports:
+    - port: 80
+      targetPort: 80

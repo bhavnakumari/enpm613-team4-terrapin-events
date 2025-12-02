@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Calendar, 
   Users, 
@@ -11,19 +13,153 @@ import {
   AlertCircle,
   BarChart3,
   FileText,
-  Settings
+  Settings,
+  Loader2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
-import { motion } from 'framer-motion';
+import { eventsService } from '../services/events.service';
+import { toast } from 'sonner';
+
+interface PendingEvent {
+  event_id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  location: string;
+  start_time: string;
+  capacity: number;
+  organizer_id: string;
+  organizer_email: string;
+  organizer_name?: string;
+  organizer_department?: string;
+  created_at: string;
+  status: string;
+}
+
+interface AdminStats {
+  total_events: number;
+  pending_approval: number;
+  approved: number;
+  rejected: number;
+  draft: number;
+  total_registrations: number;
+  active_users: number;
+  recent_activity: Array<{
+    event_id: string;
+    title: string;
+    status: string;
+    updated_at: string;
+  }>;
+  upcoming_events: Array<{
+    event_id: string;
+    title: string;
+    start_time: string;
+    capacity: number;
+    registrations_count: number;
+  }>;
+}
 
 export function AdminHomePage() {
+  const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([]);
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [isLoadingPending, setIsLoadingPending] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [approvingEventId, setApprovingEventId] = useState<string | null>(null);
+  const [rejectingEventId, setRejectingEventId] = useState<string | null>(null);
+  
+  // Load pending events and stats on mount
+  useEffect(() => {
+    loadPendingEvents();
+    loadAdminStats();
+  }, []);
+
+  const loadAdminStats = async () => {
+    try {
+      setIsLoadingStats(true);
+      const stats = await eventsService.getAdminStats();
+      console.log('Admin stats received:', stats);
+      setAdminStats(stats);
+    } catch (error) {
+      console.error('Failed to load admin stats:', error);
+      toast.error('Failed to load statistics');
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  const loadPendingEvents = async () => {
+    try {
+      setIsLoadingPending(true);
+      const events = await eventsService.getPendingEvents();
+      setPendingEvents(events);
+    } catch (error) {
+      console.error('Failed to load pending events:', error);
+      toast.error('Failed to load pending events');
+    } finally {
+      setIsLoadingPending(false);
+    }
+  };
+
+  const handleApprove = async (eventId: string) => {
+    try {
+      setApprovingEventId(eventId);
+      await eventsService.updateEvent(eventId, { status: 'approved' });
+      toast.success('Event approved successfully');
+      // Remove from pending list and reload stats
+      setPendingEvents(prev => prev.filter(e => e.event_id !== eventId));
+      loadAdminStats();
+    } catch (error) {
+      console.error('Failed to approve event:', error);
+      toast.error('Failed to approve event');
+    } finally {
+      setApprovingEventId(null);
+    }
+  };
+
+  const handleReject = async (eventId: string) => {
+    try {
+      setRejectingEventId(eventId);
+      await eventsService.updateEvent(eventId, { status: 'rejected' });
+      toast.success('Event rejected');
+      // Remove from pending list and reload stats
+      setPendingEvents(prev => prev.filter(e => e.event_id !== eventId));
+      loadAdminStats();
+    } catch (error) {
+      console.error('Failed to reject event:', error);
+      toast.error('Failed to reject event');
+    } finally {
+      setRejectingEventId(null);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return formatDate(dateString);
+  };
+
   const stats = [
     {
       title: 'Total Events',
-      value: '156',
+      value: isLoadingStats ? '...' : (adminStats?.total_events || 0).toString(),
       change: '+12%',
       icon: Calendar,
       color: 'text-blue-600 dark:text-blue-400',
@@ -31,15 +167,15 @@ export function AdminHomePage() {
     },
     {
       title: 'Pending Approval',
-      value: '8',
-      change: '+3',
+      value: isLoadingStats ? '...' : (adminStats?.pending_approval || 0).toString(),
+      change: `${adminStats?.pending_approval || 0} new`,
       icon: Clock,
       color: 'text-orange-600 dark:text-orange-400',
       bgColor: 'bg-orange-500/10',
     },
     {
       title: 'Total Registrations',
-      value: '2,847',
+      value: isLoadingStats ? '...' : (adminStats?.total_registrations || 0).toString(),
       change: '+18%',
       icon: Users,
       color: 'text-green-600 dark:text-green-400',
@@ -47,7 +183,7 @@ export function AdminHomePage() {
     },
     {
       title: 'Active Users',
-      value: '1,234',
+      value: isLoadingStats ? '...' : (adminStats?.active_users || 0).toString(),
       change: '+8%',
       icon: TrendingUp,
       color: 'text-purple-600 dark:text-purple-400',
@@ -55,99 +191,35 @@ export function AdminHomePage() {
     },
   ];
 
-  const pendingEvents = [
-    {
-      id: '1',
-      title: 'AI & Machine Learning Workshop',
-      organizer: 'Computer Science Club',
-      submittedDate: 'Nov 18, 2025',
-      category: 'Academic',
-      status: 'pending',
-    },
-    {
-      id: '2',
-      title: 'Spring Festival 2026 Planning',
-      organizer: 'Student Activities Office',
-      submittedDate: 'Nov 17, 2025',
-      category: 'Social',
-      status: 'pending',
-    },
-    {
-      id: '3',
-      title: 'Entrepreneurship Pitch Competition',
-      organizer: 'Business School',
-      submittedDate: 'Nov 16, 2025',
-      category: 'Career',
-      status: 'pending',
-    },
-  ];
+  const recentActivity = (adminStats?.recent_activity || []).map(activity => ({
+    id: activity.event_id,
+    action: activity.status === 'approved' ? 'Approved' : 'Rejected',
+    event: activity.title,
+    time: formatTimeAgo(activity.updated_at),
+    icon: activity.status === 'approved' ? CheckCircle : XCircle,
+    color: activity.status === 'approved' 
+      ? 'text-green-600 dark:text-green-400' 
+      : 'text-red-600 dark:text-red-400',
+  }));
 
-  const recentActivity = [
-    {
-      id: '1',
-      action: 'Approved',
-      event: 'Annual Tech Symposium 2025',
-      time: '2 hours ago',
-      icon: CheckCircle,
-      color: 'text-green-600 dark:text-green-400',
-    },
-    {
-      id: '2',
-      action: 'Rejected',
-      event: 'Unauthorized Campus Rally',
-      time: '4 hours ago',
-      icon: XCircle,
-      color: 'text-red-600 dark:text-red-400',
-    },
-    {
-      id: '3',
-      action: 'Approved',
-      event: 'Basketball Tournament Finals',
-      time: '5 hours ago',
-      icon: CheckCircle,
-      color: 'text-green-600 dark:text-green-400',
-    },
-    {
-      id: '4',
-      action: 'Flagged',
-      event: 'Late Night Study Session',
-      time: '1 day ago',
-      icon: AlertCircle,
-      color: 'text-yellow-600 dark:text-yellow-400',
-    },
-  ];
-
-  const upcomingEvents = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      date: 'Dec 15, 2025',
-      registrations: 145,
-      capacity: 200,
-      status: 'On Track',
-    },
-    {
-      id: '2',
-      title: 'Career Fair 2025',
-      date: 'Dec 1, 2025',
-      registrations: 234,
-      capacity: 300,
-      status: 'High Demand',
-    },
-    {
-      id: '3',
-      title: 'Basketball Tournament',
-      date: 'Nov 25, 2025',
-      registrations: 96,
-      capacity: 150,
-      status: 'On Track',
-    },
-  ];
+  const upcomingEvents = (adminStats?.upcoming_events || []).slice(0, 3).map(event => {
+    const registrations = event.registrations_count || 0;
+    const capacity = event.capacity || 1;
+    const registrationPercentage = (registrations / capacity) * 100;
+    return {
+      id: event.event_id || '',
+      title: event.title || 'Untitled Event',
+      date: event.start_time ? formatDate(event.start_time) : 'TBD',
+      registrations: registrations,
+      capacity: capacity,
+      status: registrationPercentage >= 75 ? 'High Demand' : 'On Track',
+    };
+  });
 
   const quickActions = [
     {
       title: 'Review Pending Events',
-      description: '8 events awaiting approval',
+      description: `${adminStats?.pending_approval || 0} events awaiting approval`,
       icon: Shield,
       link: '/admin',
       color: 'bg-orange-500',
@@ -244,47 +316,81 @@ export function AdminHomePage() {
                     </Link>
                   </div>
 
+                {isLoadingPending ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : pendingEvents.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No pending events to review</p>
+                  </div>
+                ) : (
                   <div className="space-y-4">
-                    {pendingEvents.map((event, index) => (
-                      <motion.div
-                        key={event.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: 0.3 + index * 0.1 }}
+                    {pendingEvents.slice(0, 3).map((event) => (
+                      <div
+                        key={event.event_id}
                         className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <h3 className="mb-1">{event.title}</h3>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span>By {event.organizer}</span>
+                              <span>By {event.organizer_name || event.organizer_email}</span>
                               <span>•</span>
-                              <span>{event.submittedDate}</span>
-                              <Badge variant="outline" className="ml-2">
-                                {event.category}
-                              </Badge>
+                              <span>{formatDate(event.created_at)}</span>
+                              {event.category && (
+                                <Badge variant="outline" className="ml-2">
+                                  {event.category}
+                                </Badge>
+                              )}
                             </div>
+                            {event.organizer_department && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Department: {event.organizer_department}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2 mt-3">
-                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                            <CheckCircle className="w-4 h-4 mr-1" />
+                          <Button 
+                            size="sm" 
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleApprove(event.event_id)}
+                            disabled={approvingEventId === event.event_id || rejectingEventId === event.event_id}
+                          >
+                            {approvingEventId === event.event_id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                            )}
                             Approve
                           </Button>
                           <Button size="sm" variant="outline">
                             <FileText className="w-4 h-4 mr-1" />
                             Review
                           </Button>
-                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
-                            <XCircle className="w-4 h-4 mr-1" />
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleReject(event.event_id)}
+                            disabled={approvingEventId === event.event_id || rejectingEventId === event.event_id}
+                          >
+                            {rejectingEventId === event.event_id ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <XCircle className="w-4 h-4 mr-1" />
+                            )}
                             Reject
                           </Button>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                </Card>
-              </motion.div>
+                )}
+              </Card>
+            </motion.div>
 
               {/* Upcoming Events */}
               <motion.div
@@ -294,46 +400,58 @@ export function AdminHomePage() {
               >
                 <Card className="p-6">
                   <h2 className="mb-4 text-[#E21833]">Upcoming Events Status</h2>
-                  <div className="space-y-4">
-                    {upcomingEvents.map((event, index) => (
-                      <motion.div
-                        key={event.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
-                        className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="mb-1">{event.title}</h3>
-                            <p className="text-sm text-muted-foreground">{event.date}</p>
+                  {isLoadingStats ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : upcomingEvents.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No upcoming approved events</p>
+                      <p className="text-xs mt-2">Events must be approved and scheduled in the future</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {upcomingEvents.map((event, index) => (
+                        <motion.div
+                          key={event.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
+                          className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="mb-1">{event.title}</h3>
+                              <p className="text-sm text-muted-foreground">{event.date}</p>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={
+                                event.status === 'High Demand'
+                                  ? 'text-orange-600 border-orange-600/30'
+                                  : 'text-green-600 border-green-600/30'
+                              }
+                            >
+                              {event.status}
+                            </Badge>
                           </div>
-                          <Badge
-                            variant="outline"
-                            className={
-                              event.status === 'High Demand'
-                                ? 'text-orange-600 border-orange-600/30'
-                                : 'text-green-600 border-green-600/30'
-                            }
-                          >
-                            {event.status}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Registration Progress</span>
-                            <span>
-                              {event.registrations} / {event.capacity}
-                            </span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Registration Progress</span>
+                              <span>
+                                {event.registrations} / {event.capacity}
+                              </span>
+                            </div>
+                            <Progress
+                              value={Math.min(100, Math.max(0, (event.registrations / event.capacity) * 100))}
+                              className="h-2"
+                            />
                           </div>
-                          <Progress
-                            value={(event.registrations / event.capacity) * 100}
-                            className="h-2"
-                          />
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </motion.div>
             </div>
@@ -392,31 +510,42 @@ export function AdminHomePage() {
               >
                 <Card className="p-6">
                   <h2 className="mb-4 text-[#E21833]">Recent Activity</h2>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <motion.div
-                        key={activity.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
-                        className="flex items-start gap-3"
-                      >
-                        <div className={`mt-1 ${activity.color}`}>
-                          <activity.icon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="mb-1">
-                                <span className={activity.color}>{activity.action}</span> {activity.event}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{activity.time}</p>
+                  {isLoadingStats ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : recentActivity.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No recent activity</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {recentActivity.map((activity, index) => (
+                        <motion.div
+                          key={activity.id}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
+                          className="flex items-start gap-3"
+                        >
+                          <div className={`mt-1 ${activity.color}`}>
+                            <activity.icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="mb-1">
+                                  <span className={activity.color}>{activity.action}</span> {activity.event}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{activity.time}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               </motion.div>
             </div>

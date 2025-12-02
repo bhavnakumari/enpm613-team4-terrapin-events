@@ -203,3 +203,116 @@ def send_waitlist_promotion_email(
         image_filename="umd.jpg",
         image_cid="eventlogo",
     )
+
+def send_feedback_request_email(
+    to_email: str,
+    event_title: str,
+    event_start_time: Optional[datetime],
+    event_location: Optional[str],
+    feedback_url: str,
+) -> None:
+    """
+    Send a 'please give feedback' email to a participant.
+    """
+    when = (
+        event_start_time.strftime("%A, %B %d %Y, %I:%M %p")
+        if event_start_time
+        else "To be announced"
+    )
+
+    html_template = load_template("feedback_request_email.html")
+
+    html_body = (
+        html_template
+        .replace("{{event_title}}", event_title)
+        .replace("{{event_datetime}}", when)
+        .replace("{{event_location}}", event_location or "TBA")
+        .replace("{{feedback_url}}", feedback_url)
+    )
+
+    _send_email_with_image(
+        to_email=to_email,
+        subject=f"[Terrapin Events] How was {event_title}?",
+        html_body=html_body,
+        image_filename="umd.jpg",   # same as your other emails
+        image_cid="eventlogo",
+    )
+
+
+# ─────────────────────────────
+#  Event workflow emails
+# ─────────────────────────────
+
+def send_event_submitted_email_to_admins(
+    to_emails: list[str],
+    event_title: str,
+    event_start_time: Optional[datetime],
+    event_location: Optional[str],
+    organizer_email: str,
+):
+    """
+    Notify admin(s) that a new event is pending approval.
+    """
+
+    when = (
+        event_start_time.strftime("%A, %B %d %Y, %I:%M %p")
+        if event_start_time
+        else "To be announced"
+    )
+
+    html_template = load_template("event_submitted_admin_notification.html")
+
+    html_body = (
+        html_template
+        .replace("{{event_title}}", event_title)
+        .replace("{{event_datetime}}", when)
+        .replace("{{event_location}}", event_location or "TBA")
+        .replace("{{organizer_email}}", organizer_email)
+    )
+
+    for admin_email in to_emails:
+        _send_email_with_image(
+            to_email=admin_email,
+            subject=f"[Terrapin Events] Event Pending Approval: {event_title}",
+            html_body=html_body,
+            image_filename="umd.jpg",
+            image_cid="eventlogo",
+        )
+
+
+def send_event_status_update_email_to_organizer(
+    to_email: str,
+    event_title: str,
+    event_start_time: Optional[datetime],
+    event_location: Optional[str],
+    new_status: str,
+):
+    """
+    Notify organizer that the event was APPROVED or REJECTED.
+    """
+
+    when = (
+        event_start_time.strftime("%A, %B %d %Y, %I:%M %p")
+        if event_start_time
+        else "To be announced"
+    )
+
+    status_text = "APPROVED 🎉" if new_status == "approved" else "REJECTED ❌"
+
+    html_template = load_template("event_status_update_email.html")
+
+    html_body = (
+        html_template
+        .replace("{{event_title}}", event_title)
+        .replace("{{event_datetime}}", when)
+        .replace("{{event_location}}", event_location or "TBA")
+        .replace("{{status_text}}", status_text)
+    )
+
+    _send_email_with_image(
+        to_email=to_email,
+        subject=f"[Terrapin Events] Your Event Was {status_text}: {event_title}",
+        html_body=html_body,
+        image_filename="umd.jpg",
+        image_cid="eventlogo",
+    )

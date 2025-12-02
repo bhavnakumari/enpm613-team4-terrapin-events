@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Ticket, Mail, Phone, User, Edit, Settings, Download } from 'lucide-react';
+import { Calendar, MapPin, Clock, Ticket, Mail, Phone, User, Edit, Settings, Download, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -8,6 +8,22 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Separator } from '../components/ui/separator';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../lib/api-client';
+import { eventsService } from '../services/events.service';
+import { registrationsService } from '../services/registrations.service';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
 
 interface RegisteredEvent {
   id: string;
@@ -22,60 +38,76 @@ interface RegisteredEvent {
   status: 'confirmed' | 'pending' | 'cancelled';
 }
 
-const mockRegistrations: RegisteredEvent[] = [
-  {
-    id: '1',
-    title: 'Annual Tech Symposium 2025',
-    date: 'December 15, 2025',
-    time: '9:00 AM - 5:00 PM',
-    location: 'Main Auditorium, Building A',
-    imageUrl: 'https://images.unsplash.com/photo-1760420940953-3958ad9f6287?w=400',
-    category: 'Academic',
-    ticketNumber: 'TS-2025-001234',
-    registeredAt: 'November 10, 2025',
-    status: 'confirmed',
-  },
-  {
-    id: '2',
-    title: 'Welcome Week Social Mixer',
-    date: 'November 20, 2025',
-    time: '6:00 PM - 9:00 PM',
-    location: 'Student Center Plaza',
-    imageUrl: 'https://images.unsplash.com/photo-1632834380561-d1e05839a33a?w=400',
-    category: 'Social',
-    ticketNumber: 'WW-2025-005678',
-    registeredAt: 'November 5, 2025',
-    status: 'confirmed',
-  },
-  {
-    id: '3',
-    title: 'Web Development Workshop',
-    date: 'December 1, 2025',
-    time: '3:00 PM - 6:00 PM',
-    location: 'Computer Lab 301',
-    imageUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400',
-    category: 'Workshop',
-    ticketNumber: 'WD-2025-009012',
-    registeredAt: 'November 12, 2025',
-    status: 'confirmed',
-  },
-];
 
 export function UserProfilePage() {
   const [activeTab, setActiveTab] = useState('upcoming');
-  
-  const user = {
-    name: 'John Terp',
-    email: 'john@umd.edu',
-    phone: '(301) 555-0123',
-    role: 'Student',
-    major: 'Computer Science',
-    graduationYear: '2026',
-    avatar: '',
-  };
+  const { user } = useAuth();
+  const [registrations, setRegistrations] = useState<RegisteredEvent[]>([]);
+  const [cancellingEventId, setCancellingEventId] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<{ id: string; title: string } | null>(null);
 
-  const upcomingEvents = mockRegistrations.filter(e => e.status === 'confirmed');
+  useEffect(() => {
+    const fetchRegistrations = async () => {
+      const startTime = performance.now();
+      try {
+        const regsWithEvents = await apiClient.get<any[]>('/api/events/registrations/my-registrations-with-events');
+        const events = regsWithEvents.map(r => {
+          const e = r.event_details;
+          return {
+            id: r.event_id,
+            title: e.title,
+            date: new Date(e.start_time).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            location: e.location,
+            imageUrl: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400',
+            category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
+            ticketNumber: r.registration_id,
+            registeredAt: new Date(r.registered_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            status: r.status === 'registered' ? 'confirmed' as const : 'pending' as const,
+          };
+        });
+        setRegistrations(events);
+        const endTime = performance.now();
+        console.log(`✅ Profile registrations loaded in ${(endTime - startTime).toFixed(0)}ms`);
+      } catch (err) {
+        console.error('Failed to fetch registrations:', err);
+      }
+    };
+    
+    // Only fetch if user is authenticated (from AuthContext)
+    if (user) {
+      fetchRegistrations();
+    }
+  }, [user]);
+
+  const upcomingEvents = registrations.filter(e => e.status === 'confirmed');
   const pastEvents: RegisteredEvent[] = [];
+
+  const handleCancelRegistration = async () => {
+    if (!selectedEvent) return;
+
+    try {
+      setCancellingEventId(selectedEvent.id);
+      setDialogOpen(false);
+      await registrationsService.cancelRegistration(selectedEvent.id);
+      
+      // Remove the cancelled event from the list
+      setRegistrations(prev => prev.filter(r => r.id !== selectedEvent.id));
+      
+      toast.success('Registration Cancelled', {
+        description: `Your registration for "${selectedEvent.title}" has been cancelled.`,
+      });
+    } catch (error: any) {
+      console.error('Failed to cancel registration:', error);
+      toast.error('Cancellation Failed', {
+        description: error?.message || 'Failed to cancel registration',
+      });
+    } finally {
+      setCancellingEventId(null);
+      setSelectedEvent(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 py-12">
@@ -84,25 +116,27 @@ export function UserProfilePage() {
         <Card className="p-8 mb-8">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
             <Avatar className="w-24 h-24">
-              <AvatarImage src={user.avatar} />
+              <AvatarImage src="" />
               <AvatarFallback className="bg-[#E21833] text-white text-2xl">
-                {user.name.split(' ').map(n => n[0]).join('')}
+                {user?.first_name?.[0]}{user?.last_name?.[0]}
               </AvatarFallback>
             </Avatar>
 
             <div className="flex-1">
-              <h1 className="mb-2">{user.name}</h1>
-              <p className="text-muted-foreground mb-4">{user.role} • {user.major} • Class of {user.graduationYear}</p>
+              <h1 className="mb-2">{user?.first_name} {user?.last_name}</h1>
+              <p className="text-muted-foreground mb-4">{user?.role}{user?.major && ` • ${user.major}`}{user?.year && ` • Class of ${user.year}`}</p>
               
               <div className="flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span>{user.email}</span>
+                  <span>{user?.email}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span>{user.phone}</span>
-                </div>
+                {user?.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <span>{user.phone}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -124,7 +158,7 @@ export function UserProfilePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Registrations</p>
-                <p className="text-foreground">{mockRegistrations.length}</p>
+                <p className="text-foreground">{registrations.length}</p>
               </div>
               <div className="w-12 h-12 bg-[#E21833]/10 dark:bg-[#C11528]/20 rounded-lg flex items-center justify-center">
                 <Ticket className="w-6 h-6 text-[#E21833]" />
@@ -242,9 +276,50 @@ export function UserProfilePage() {
                           <Download className="w-4 h-4 mr-2" />
                           Download Ticket
                         </Button>
-                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                          Cancel Registration
-                        </Button>
+                        <AlertDialog open={dialogOpen && selectedEvent?.id === event.id} onOpenChange={(open) => {
+                          setDialogOpen(open);
+                          if (!open) setSelectedEvent(null);
+                        }}>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                              disabled={cancellingEventId === event.id}
+                              onClick={() => {
+                                setSelectedEvent({ id: event.id, title: event.title });
+                                setDialogOpen(true);
+                              }}
+                            >
+                              {cancellingEventId === event.id ? 'Cancelling...' : 'Cancel Registration'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
+                                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                                </div>
+                                <AlertDialogTitle className="text-xl">Cancel Registration?</AlertDialogTitle>
+                              </div>
+                              <AlertDialogDescription className="text-base">
+                                Are you sure you want to cancel your registration for <strong>"{event.title}"</strong>? 
+                                This action cannot be undone and you may need to re-register if you change your mind.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="gap-2 sm:gap-2">
+                              <AlertDialogCancel className="mt-2 sm:mt-0">
+                                Keep Registration
+                              </AlertDialogCancel>
+                              <AlertDialogAction 
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                                onClick={handleCancelRegistration}
+                              >
+                                Yes, Cancel Registration
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   </div>

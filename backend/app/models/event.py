@@ -4,7 +4,7 @@ Only organizers and admins can create/modify events.
 """
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -45,8 +45,17 @@ class Event(BaseModel):
     requested_admin_id: Optional[str] = Field(None, description="Directory ID of admin from whom approval is requested")
     requested_admin_email: Optional[str] = Field(None, description="Email of requested admin for approval notifications")
     approved_by_admin_id: Optional[str] = Field(None, description="Directory ID of admin who approved/rejected the event")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # 👇 NEW PAYMENT FIELDS
+    is_paid: bool = Field(default=False, description="Whether this event requires payment")
+    price: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Ticket price if this is a paid event",
+    )
+    currency: Optional[str] = Field(default="USD", description="Currency code for price")
     
     class Config:
         json_schema_extra = {
@@ -72,3 +81,9 @@ class Event(BaseModel):
                 "updated_at": "2025-11-14T10:00:00"
             }
         }
+
+class PaymentRequest(BaseModel):
+    card_number: str = Field(..., min_length=12, max_length=19)
+    expiry_month: int = Field(..., ge=1, le=12)
+    expiry_year: int = Field(..., ge=2024)
+    cvc: str = Field(..., min_length=3, max_length=4)

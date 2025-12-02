@@ -9,26 +9,48 @@ import { OrganiserHomePage } from './pages/OrganiserHomePage';
 import { LoginPage } from './pages/LoginPage';
 import { EventsCatalogPage } from './pages/EventsCatalogPage';
 import { EventDetailsPage } from './pages/EventDetailsPage';
+import { PaymentPage } from './pages/PaymentPage';
+import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPage';
 import { CreateEventWizard } from './pages/CreateEventWizard';
 import { AdminApprovalPage } from './pages/AdminApprovalPage';
 import { UserProfilePage } from './pages/UserProfilePage';
-import { PaymentPage } from './pages/PaymentPage';
-import { RegistrationConfirmationPage } from './pages/RegistrationConfirmationPage';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import { FeedbackPage } from './pages/FeedbackPage';
 
 // Protected Route Component
-function ProtectedRoute({ children, adminOnly = false, organizerOrAdmin = false }: { children: React.ReactNode; adminOnly?: boolean; organizerOrAdmin?: boolean }) {
-  const { isAuthenticated, isAdmin, isOrganizer } = useAuth();
+function ProtectedRoute({ 
+  children, 
+  adminOnly = false, 
+  organizerOnly = false 
+}: { 
+  children: React.ReactNode; 
+  adminOnly?: boolean;
+  organizerOnly?: boolean;
+}) {
+  const { isAuthenticated, isAdmin, isOrganizer, isLoading } = useAuth();
   
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  // Wait for auth check to complete
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E21833] mx-auto"></div>
+        <p className="mt-4 text-muted-foreground">Loading...</p>
+      </div>
+    </div>;
   }
   
+  // Redirect to landing page if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+  
+  // Redirect to home if trying to access admin-only page without admin role
   if (adminOnly && !isAdmin) {
     return <Navigate to="/" replace />;
   }
   
-  if (organizerOrAdmin && !isAdmin && !isOrganizer) {
+  // Redirect to home if trying to access organizer-only page without proper role
+  if (organizerOnly && !(isOrganizer || isAdmin)) {
     return <Navigate to="/" replace />;
   }
   
@@ -78,8 +100,27 @@ export default function App() {
                       <EventDetailsPage />
                     </ProtectedRoute>
                   } />
+
+              {/* Public feedback page, used from email links */}
+                  <Route path="/events/:id/feedback" element={<FeedbackPage />} />
+                  <Route path="/payment" element={
+                    <ProtectedRoute>
+                      <PaymentPage />
+                    </ProtectedRoute>
+                  } />
+
+                  <Route path="/payment" element={
+                    <ProtectedRoute>
+                      <PaymentPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/registration-confirmation" element={
+                    <ProtectedRoute>
+                      <RegistrationConfirmationPage />
+                    </ProtectedRoute>
+                  } />
                   <Route path="/create-event" element={
-                    <ProtectedRoute organizerOrAdmin>
+                    <ProtectedRoute organizerOnly>
                       <CreateEventWizard />
                     </ProtectedRoute>
                   } />
@@ -93,18 +134,8 @@ export default function App() {
                       <UserProfilePage />
                     </ProtectedRoute>
                   } />
-                  <Route path="/payment" element={
-                    <ProtectedRoute>
-                      <PaymentPage />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/registration-confirmation" element={
-                    <ProtectedRoute>
-                      <RegistrationConfirmationPage />
-                    </ProtectedRoute>
-                  } />
                   <Route path="/analytics" element={
-                    <ProtectedRoute organizerOrAdmin>
+                    <ProtectedRoute adminOnly>
                       <AnalyticsDashboard />
                     </ProtectedRoute>
                   } />

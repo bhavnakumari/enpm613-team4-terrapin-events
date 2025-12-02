@@ -1,78 +1,106 @@
-import { Link } from 'react-router-dom';
-import { Calendar, Users, Search, TrendingUp, ArrowRight, Star, ChevronRight, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Calendar, Users, Search, TrendingUp, ArrowRight, Star, ChevronRight, Clock, Tag } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import umdArenaImage from 'figma:asset/3fc834086fb25400b52cb9a396ec6c845aa019d4.png';
+import { useState, useEffect, useMemo } from 'react';
+import { eventsService } from '../services/events.service';
+import { registrationsService } from '../services/registrations.service';
 
 export function ParticipantHomePage() {
-  const upcomingEvents = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      date: 'December 15, 2025',
-      time: '2:00 PM',
-      location: 'Stamp Student Union',
-      category: 'Academic',
-      attendees: 145,
-      image: 'https://images.unsplash.com/photo-1760420940953-3958ad9f6287?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdHVkZW50JTIwY29uZmVyZW5jZSUyMHdvcmtzaG9wfGVufDF8fHx8MTc2MzE3NTM1NHww&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '2',
-      title: 'Welcome Week Social Mixer',
-      date: 'November 20, 2025',
-      time: '6:00 PM',
-      location: 'McKeldin Library',
-      category: 'Social',
-      attendees: 87,
-      image: 'https://images.unsplash.com/photo-1632834380561-d1e05839a33a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bml2ZXJzaXR5JTIwY2FtcHVzJTIwc3R1ZGVudHN8ZW58MXx8fHwxNzYzMDcyMjI5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '3',
-      title: 'Basketball Tournament',
-      date: 'November 25, 2025',
-      time: '4:00 PM',
-      location: 'Xfinity Center',
-      category: 'Sports',
-      attendees: 96,
-      image: 'https://images.unsplash.com/photo-1762709753300-342ab94e8b05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2xsZWdlJTIwc3BvcnRzJTIwZXZlbnR8ZW58MXx8fHwxNzYzMTc1MzU0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-    {
-      id: '4',
-      title: 'Career Fair 2025',
-      date: 'December 1, 2025',
-      time: '10:00 AM',
-      location: 'Stamp Student Union',
-      category: 'Career',
-      attendees: 234,
-      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXJlZXIlMjBmYWlyfGVufDB8fHx8MTczMjA1MjY0NXww&ixlib=rb-4.1.0&q=80&w=1080',
-    },
-  ];
+  const navigate = useNavigate();
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [myRegistrations, setMyRegistrations] = useState<any[]>([]);
+  const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [categories, setCategories] = useState<any[]>([
+    { name: 'Academic', count: 0, color: 'bg-blue-500', bgGradient: 'from-blue-500/10 to-blue-500/5', iconBg: 'bg-blue-500' },
+    { name: 'Social', count: 0, color: 'bg-purple-500', bgGradient: 'from-purple-500/10 to-purple-500/5', iconBg: 'bg-purple-500' },
+    { name: 'Sports', count: 0, color: 'bg-green-500', bgGradient: 'from-green-500/10 to-green-500/5', iconBg: 'bg-green-500' },
+    { name: 'Career', count: 0, color: 'bg-orange-500', bgGradient: 'from-orange-500/10 to-orange-500/5', iconBg: 'bg-orange-500' },
+    { name: 'Arts', count: 0, color: 'bg-pink-500', bgGradient: 'from-pink-500/10 to-pink-500/5', iconBg: 'bg-pink-500' },
+  ]);
 
-  const myRegistrations = [
-    {
-      id: '1',
-      title: 'Annual Tech Symposium 2025',
-      date: 'December 15, 2025',
-      status: 'Confirmed',
-    },
-    {
-      id: '5',
-      title: 'Study Abroad Info Session',
-      date: 'November 28, 2025',
-      status: 'Confirmed',
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      const startTime = performance.now();
+      try {
+        // Parallel API calls for better performance
+        const [catalogEvents, regsWithEvents, categoryStats] = await Promise.all([
+          eventsService.getCatalog(),
+          registrationsService.getMyRegistrationsWithEvents(),
+          eventsService.getCategoryStats()
+        ]);
 
-  const categories = [
-    { name: 'Academic', count: 24, color: 'bg-blue-500', bgGradient: 'from-blue-500/10 to-blue-500/5', iconBg: 'bg-blue-500' },
-    { name: 'Social', count: 18, color: 'bg-purple-500', bgGradient: 'from-purple-500/10 to-purple-500/5', iconBg: 'bg-purple-500' },
-    { name: 'Sports', count: 15, color: 'bg-green-500', bgGradient: 'from-green-500/10 to-green-500/5', iconBg: 'bg-green-500' },
-    { name: 'Career', count: 12, color: 'bg-orange-500', bgGradient: 'from-orange-500/10 to-orange-500/5', iconBg: 'bg-orange-500' },
-    { name: 'Arts', count: 9, color: 'bg-pink-500', bgGradient: 'from-pink-500/10 to-pink-500/5', iconBg: 'bg-pink-500' },
-  ];
+        const endTime = performance.now();
+        console.log(`✅ Home data loaded in ${(endTime - startTime).toFixed(0)}ms (parallel)`);
+
+        // Store all events for search
+        setAllEvents(catalogEvents);
+
+        // Process upcoming events
+        const now = new Date();
+        const upcoming = catalogEvents
+          .filter(e => new Date(e.start_time) > now)
+          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+          .slice(0, 4)
+          .map(e => ({
+            id: e.event_id,
+            title: e.title,
+            date: new Date(e.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            time: new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            location: e.location,
+            category: e.category?.charAt(0).toUpperCase() + e.category?.slice(1) || 'Event',
+            attendees: e.attendee_count || 0,
+            image: e.banner || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+          }));
+        setUpcomingEvents(upcoming);
+
+        // Process registrations
+        const regEvents = regsWithEvents.slice(0, 2).map(r => ({
+          id: r.event_id,
+          title: r.event_details.title,
+          date: new Date(r.event_details.start_time).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          status: r.status === 'registered' ? 'Confirmed' : 'Waitlisted',
+        }));
+        setMyRegistrations(regEvents);
+
+        // Process category stats
+        const categoryCounts = categoryStats.reduce((acc: any, stat) => {
+          const cat = stat.category?.charAt(0).toUpperCase() + stat.category?.slice(1);
+          acc[cat] = stat.count;
+          return acc;
+        }, {});
+        setCategories(prev => prev.map(c => ({ ...c, count: categoryCounts[c.name] || 0 })));
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Memoized search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return { categories: [], events: [] };
+    
+    const query = searchQuery.toLowerCase();
+    const matchedCategories = categories.filter(c => 
+      c.name.toLowerCase().includes(query) && c.count > 0
+    );
+    const matchedEvents = allEvents.filter(e => 
+      e.title.toLowerCase().includes(query)
+    ).slice(0, 5);
+    
+    return { categories: matchedCategories, events: matchedEvents };
+  }, [searchQuery, categories, allEvents]);
+
+  const hasResults = searchResults.categories.length > 0 || searchResults.events.length > 0;
 
   return (
     <div className="min-h-screen">
@@ -97,17 +125,88 @@ export function ParticipantHomePage() {
                 Browse events, connect with students, and make the most of your time at UMD.
               </p>
               
-              {/* Search Bar */}
+              {/* Search Bar with Autocomplete */}
               <div className="flex gap-3 max-w-xl">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search for events..."
-                    className="pl-10 bg-white dark:bg-gray-800 border-0"
-                  />
-                </div>
-                <Button className="bg-[#E21833] hover:bg-[#C11528] text-white">
+                <Popover open={searchOpen && hasResults} onOpenChange={setSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+                      <Input
+                        type="text"
+                        placeholder="Search for events or categories..."
+                        className="pl-10 bg-white dark:bg-gray-800 border-0"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setSearchOpen(e.target.value.trim().length > 0);
+                        }}
+                        onFocus={() => setSearchOpen(searchQuery.trim().length > 0)}
+                      />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[500px] p-0" align="start">
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        
+                        {searchResults.categories.length > 0 && (
+                          <CommandGroup heading="Categories">
+                            {searchResults.categories.map((category) => (
+                              <CommandItem
+                                key={category.name}
+                                onSelect={() => {
+                                  navigate(`/events?category=${category.name}`);
+                                  setSearchOpen(false);
+                                  setSearchQuery('');
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Tag className="w-4 h-4 mr-2 text-[#E21833]" />
+                                <span>{category.name}</span>
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                  {category.count} events
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        
+                        {searchResults.events.length > 0 && (
+                          <CommandGroup heading="Events">
+                            {searchResults.events.map((event) => (
+                              <CommandItem
+                                key={event.event_id}
+                                onSelect={() => {
+                                  navigate(`/events/${event.event_id}`);
+                                  setSearchOpen(false);
+                                  setSearchQuery('');
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Calendar className="w-4 h-4 mr-2 text-[#E21833]" />
+                                <div className="flex-1 truncate">
+                                  <div className="font-medium truncate">{event.title}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(event.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <Button 
+                  className="bg-[#E21833] hover:bg-[#C11528] text-white"
+                  onClick={() => {
+                    if (searchQuery.trim()) {
+                      navigate(`/events?search=${encodeURIComponent(searchQuery)}`);
+                      setSearchQuery('');
+                    }
+                  }}
+                >
                   Search
                 </Button>
               </div>
@@ -147,9 +246,11 @@ export function ParticipantHomePage() {
                     </Badge>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm">
-                  View Details
-                </Button>
+                <Link to={`/events/${event.id}`}>
+                  <Button variant="ghost" size="sm">
+                    View Details
+                  </Button>
+                </Link>
               </Card>
             ))}
           </div>

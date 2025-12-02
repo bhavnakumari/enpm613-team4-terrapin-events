@@ -13,6 +13,7 @@ from app.api.auth import router as auth_router
 from app.api.events import router as events_router
 from app.api.registrations import router as registrations_router
 from app.api.users import router as users_router
+from app.api.feedback import router as feedback_router
 
 # Configure logging
 logging.basicConfig(
@@ -61,8 +62,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers
@@ -70,6 +72,7 @@ app.include_router(auth_router)
 app.include_router(events_router)
 app.include_router(registrations_router)
 app.include_router(users_router)
+app.include_router(feedback_router)
 
 
 @app.get("/")
