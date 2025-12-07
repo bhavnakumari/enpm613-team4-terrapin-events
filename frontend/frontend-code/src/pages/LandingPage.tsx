@@ -107,7 +107,7 @@ export function LandingPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-4">
-                <Link to="/events">
+                <Link to="/login">
                   <Button
                     size="lg"
                     className="bg-white text-[#E21833] hover:bg-gray-100"
@@ -116,30 +116,7 @@ export function LandingPage() {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                {isAuthenticated ? (
-                  <>
-                    <Link to="/events">
-                      <Button
-                        size="lg"
-                        className="bg-white text-[#E21833] hover:bg-gray-100"
-                      >
-                        Browse Events
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </Button>
-                    </Link>
-                    <Link to="/create-event">
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        className="border-white text-white hover:bg-white/10"
-                      >
-                        Create Event
-                      </Button>
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link to="/login">
+                 {/* <Link to="/login">
                       <Button
                         size="lg"
                         className="bg-white text-[#E21833] hover:bg-gray-100"
@@ -147,7 +124,7 @@ export function LandingPage() {
                         Sign In
                         <ArrowRight className="w-5 h-5 ml-2" />
                       </Button>
-                    </Link>
+                    </Link> */}
                     <Link to="/login">
                       <Button
                         size="lg"
@@ -157,8 +134,7 @@ export function LandingPage() {
                         Get Started
                       </Button>
                     </Link>
-                  </>
-                )}
+    
               </div>
             </div>
           </div>
