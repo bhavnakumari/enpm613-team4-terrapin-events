@@ -24,6 +24,7 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+  const isLandingPage = location.pathname === '/' && !user;
 
   const handleLogout = () => {
     logout();
@@ -47,7 +48,7 @@ export function Layout({ children }: LayoutProps) {
               </span>
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-6 text-sm">
+            <nav className="hidden lg:flex items-center gap-6 text-sm absolute left-1/2 transform -translate-x-1/2">
               <Link
                 to="/"
                 className={`hover:text-[#E21833] transition-colors ${
@@ -126,14 +127,15 @@ export function Layout({ children }: LayoutProps) {
                 {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </Button>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-muted transition-colors">
-                  <div className="w-8 h-8 bg-[#E21833] dark:bg-[#C11528] rounded-full flex items-center justify-center text-white">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <ChevronDown className="w-4 h-4" />
-                </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              {!isLandingPage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-muted transition-colors">
+                    <div className="w-8 h-8 bg-[#E21833] dark:bg-[#C11528] rounded-full flex items-center justify-center text-white">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <ChevronDown className="w-4 h-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm">
                   <div>{user ? `${user.first_name} ${user.last_name}` : 'John Terp'}</div>
                   <div className="text-xs text-muted-foreground">{user?.email || 'john@umd.edu'}</div>
@@ -159,7 +161,8 @@ export function Layout({ children }: LayoutProps) {
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
-              </DropdownMenu>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </div>
